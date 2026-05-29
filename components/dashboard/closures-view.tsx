@@ -172,7 +172,7 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
             No hay cierres guardados aún.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 xl:grid-cols-6 lg:overflow-visible" style={{ scrollSnapType: 'x mandatory' }}>
             {cierres.map(c => {
               const r = c.resumen
               const okTms = r.tmss <= META_TMS
@@ -184,8 +184,9 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
                   onClick={() => setSelected(selected?.mesAnio === c.mesAnio ? null : c)}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.97 }}
+                  style={{ minWidth: '160px', scrollSnapAlign: 'start' }}
                   className={cn(
-                    'text-left rounded-xl border p-4 transition-all',
+                    'text-left rounded-xl border p-4 transition-all flex-shrink-0 lg:flex-shrink',
                     selected?.mesAnio === c.mesAnio
                       ? 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/10'
                       : 'border-border bg-card/50 hover:border-border/80 hover:bg-accent/50'
