@@ -85,21 +85,53 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
   const [showSn1CC, setShowSn1CC] = useState(true)
   const [showSn1SC, setShowSn1SC] = useState(true)
 
-  // Acumulado diario
+  // Acumulado diario — calcula TMS y SN1 desde bdRecords igual que el original
   const acumulado = useMemo(() => {
-    if (!data.serieDia?.length) return []
-    let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0
-    let sn1_n = 0, sn1s_n = 0
-    return data.serieDia.map(d => {
-      tms_n += d.casos; tms_s += d.tms * d.casos
-      tmss_n += d.casos; tmss_s += d.tmss * d.casos
-      sn1_n += d.casos; sn1s_n += d.casos
+    const records = data.bdRecords || []
+    const serieDia = data.serieDia || []
+    if (!serieDia.length) return []
+
+    type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
+    const byFecha: Record<string, DayAcc> = {}
+
+    records.forEach(r => {
+      const f = r.cierre?.slice(0, 10) || ''
+      if (!f) return
+      if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+      const d = byFecha[f]
+      const masRaw = (r.masivo || '').toUpperCase().trim()
+      const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
+      const mTMS = masRaw === 'CORTE DE CABLE'
+      if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
+      if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
+      if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
+      if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
+    })
+
+    const useBD = records.length > 0
+    const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+
+    return serieDia.map(d => {
+      const f = d.fecha.slice(0, 10)
+      if (useBD && byFecha[f]) {
+        const b = byFecha[f]
+        acc.tms_s  += b.tms_s;  acc.tms_n  += b.tms_n
+        acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
+        acc.sn1_n  += b.sn1_n;  acc.sn1_hdp  += b.sn1_hdp
+        acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
+      } else {
+        acc.tms_n  += d.casos; acc.tms_s  += d.tms  * d.casos
+        acc.tmss_n += d.casos; acc.tmss_s += d.tmss * d.casos
+        acc.sn1_n  += d.casos; acc.sn1s_n += d.casos
+        acc.sn1_hdp  = Math.round(acc.sn1_n  * data.sn1)
+        acc.sn1s_hdp = Math.round(acc.sn1s_n * data.sn1s)
+      }
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: tms_n  > 0 ? tms_s  / tms_n  : null,
-        tmsSC: tmss_n > 0 ? tmss_s / tmss_n : null,
-        sn1CC: sn1_n  > 0 ? data.sn1  * 100 : null,
-        sn1SC: sn1s_n > 0 ? data.sn1s * 100 : null,
+        tmsCC: acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+        tmsSC: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+        sn1CC: acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+        sn1SC: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
       }
     })
   }, [data])
