@@ -9,8 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.4.0-canary.5",
-    "eslint-config-next": "15.4.0-canary.5"
+    "next": "14.2.29",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "framer-motion": "11.3.19",
@@ -29,6 +28,6 @@
     "autoprefixer": "10.4.20",
     "postcss": "8.4.38",
     "eslint": "8.57.0",
-    "eslint-config-next": "15.3.3"
+    "eslint-config-next": "14.2.29"
   }
 }
