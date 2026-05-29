@@ -52,3 +52,7 @@
   50% { box-shadow: 0 0 0 8px hsl(217 91% 65% / 0); }
 }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+html {
+  background-color: #0a0a0b;
+  color: #ededed;
+}
