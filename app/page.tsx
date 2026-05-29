@@ -299,7 +299,7 @@ export default function Dashboard() {
             {/* Informe */}
             {activeTab === 'informe' && data && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <ReportView data={data} mes={mes} metaSn1={META_SN1} metaTms={META_TMS} />
+                <ReportView data={{   sn1ConCofo: data.sn1 * 100,   sn1SinCofo: data.sn1s * 100,   tmsConCofo: formatHMS(data.tms),   tmsSinCofo: formatHMS(data.tmss),   totalCases: data.totalMayoristas,   month: mesLabel(mes),   dateRange: mes, }} />
               </motion.div>
             )}
 
