@@ -1,285 +1,521 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { Camera, Settings, RotateCcw, Download } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
+import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ReferenceLine, Legend, Cell
+} from 'recharts'
+import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel } from '@/lib/utils'
+import type { MetricasData, ClienteData, BDRecord, SerieDia } from '@/lib/gas'
 
-interface ReportData {
-  sn1ConCofo: number
-  sn1SinCofo: number
-  tmsConCofo: string
-  tmsSinCofo: string
-  totalCases: number
-  month: string
-  dateRange: string
+const META_SN1 = 0.70
+const META_TMS = 11.5
+
+// Histórico hardcodeado — igual al index.html original
+const HIST_BASE = [
+  { mes: 'Nov 25', tms_sc: 10.0156, tms_cc: 36.2942, sn1_sc: 0.757, sn1_cc: 0.52  },
+  { mes: 'Dic 25', tms_sc: 7.7375,  tms_cc: 36.3886, sn1_sc: 0.71,  sn1_cc: 0.465 },
+  { mes: 'Ene 26', tms_sc: 9.0875,  tms_cc: 28.1456, sn1_sc: 0.712, sn1_cc: 0.537 },
+  { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
+  { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
+  { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
+]
+
+// Calcular acumulado diario desde serieDia
+function calcAcumulado(serieDia: SerieDia[]) {
+  if (!serieDia?.length) return []
+  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0
+  return serieDia.map(d => {
+    tms_n += d.casos; tms_s += d.tms * d.casos
+    tmss_n += d.casos; tmss_s += d.tmss * d.casos
+    return {
+      fecha: d.fecha.slice(5),
+      tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
+      tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
+    }
+  })
+}
+
+// Tooltip oscuro
+const DarkTooltip = ({ active, payload, label, formatter }: any) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg border border-border bg-card/95 backdrop-blur-sm p-3 shadow-xl text-xs">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.color }} className="font-medium">
+          {p.name}: {formatter ? formatter(p.value) : p.value}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+// Badge de estado
+function StatusBadge({ status }: { status: ReturnType<typeof sn1Status> }) {
+  const colors = {
+    success: 'bg-success/15 text-success border-success/30',
+    warning: 'bg-warning/15 text-warning border-warning/30',
+    danger:  'bg-danger/15 text-danger border-danger/30',
+    neutral: 'bg-primary/15 text-primary border-primary/30',
+  }
+  const dots = {
+    success: 'bg-success animate-pulse',
+    warning: 'bg-warning',
+    danger:  'bg-danger',
+    neutral: 'bg-primary',
+  }
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold', colors[status])}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', dots[status])} />
+      {statusLabel(status)}
+    </span>
+  )
+}
+
+// KPI Card del informe
+function InfKPICard({ label, value, sub, status }: {
+  label: string; value: string; sub: string; status: ReturnType<typeof sn1Status>
+}) {
+  const borderColors = {
+    success: 'border-l-success',
+    warning: 'border-l-warning',
+    danger:  'border-l-danger',
+    neutral: 'border-l-primary',
+  }
+  const valColors = {
+    success: 'text-success',
+    warning: 'text-warning',
+    danger:  'text-danger',
+    neutral: 'text-primary',
+  }
+  return (
+    <div className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderColors[status])}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{label}</p>
+      <p className={cn('font-mono text-2xl font-bold leading-none mb-1', valColors[status])}>{value}</p>
+      <p className="text-[10px] text-muted-foreground mb-3">{sub}</p>
+      <StatusBadge status={status} />
+    </div>
+  )
 }
 
 interface ReportViewProps {
-  data: ReportData
+  data: MetricasData
+  mes: string
+  metaSn1: number
+  metaTms: number
 }
 
-export function ReportView({ data }: ReportViewProps) {
-  const [showAdjustPanel, setShowAdjustPanel] = useState(false)
-  const [adjustedData, setAdjustedData] = useState<ReportData>(data)
+export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
+  const slide1Ref = useRef<HTMLDivElement>(null)
+  const slide2Ref = useRef<HTMLDivElement>(null)
+  const [ajusteOpen, setAjusteOpen] = useState(false)
+  const [ajSn1Cc, setAjSn1Cc] = useState('')
+  const [ajSn1Sc, setAjSn1Sc] = useState('')
+  const [ajTmsCc, setAjTmsCc] = useState('')
+  const [ajTmsSc, setAjTmsSc] = useState('')
+  const [downloading, setDownloading] = useState(false)
 
-  const resetAdjustments = () => {
-    setAdjustedData(data)
+  // Datos con ajuste manual aplicado
+  const sn1  = ajSn1Cc ? parseFloat(ajSn1Cc) / 100 : data.sn1
+  const sn1s = ajSn1Sc ? parseFloat(ajSn1Sc) / 100 : data.sn1s
+  function parseHMS(s: string) {
+    if (!s) return null
+    const p = s.split(':')
+    if (p.length === 3) return parseInt(p[0]) + parseInt(p[1])/60 + parseFloat(p[2])/3600
+    return null
+  }
+  const tms  = parseHMS(ajTmsCc) ?? data.tms
+  const tmss = parseHMS(ajTmsSc) ?? data.tmss
+
+  const mLabel = mesLabel(mes)
+
+  // Histórico actualizado con mes actual
+  const hist = [...HIST_BASE]
+  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const [yy, mm] = mes.split('-')
+  const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
+  const histIdx = hist.findIndex(h => h.mes === mL)
+  if (histIdx >= 0) {
+    hist[histIdx] = { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
+  } else {
+    hist.push({ mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 })
   }
 
-  const handleCapture = () => {
-    // In a real app, this would use html2canvas or similar
-    alert("Captura de informe iniciada...")
+  // Promedios históricos
+  const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
+  const avgTmsCc = hist.reduce((s, h) => s + (h.tms_cc || 0), 0) / hist.length
+  const avgSn1Sc = hist.reduce((s, h) => s + (h.sn1_sc || 0), 0) / hist.length
+  const avgSn1Cc = hist.reduce((s, h) => s + (h.sn1_cc || 0), 0) / hist.length
+  const prev = hist.length >= 2 ? hist[hist.length - 2] : null
+
+  function delta(cur: number, prevV: number | undefined, higherBetter: boolean) {
+    if (!prev || !prevV) return null
+    const dv = cur - prevV
+    const pct = Math.abs(dv / prevV * 100).toFixed(1)
+    const up = dv > 0
+    const good = higherBetter ? up : !up
+    return { txt: `${up ? '↑' : '↓'} ${pct}%`, good }
   }
+
+  // Acumulado diario
+  const acum = calcAcumulado(data.serieDia || [])
+
+  // Top clientes
+  const clientes = data.clientes || []
+  const top5best = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (a.tmss || 0) - (b.tmss || 0)).slice(0, 5)
+  const top5worst = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (b.tmss || 0) - (a.tmss || 0)).slice(0, 5)
+  const top10 = [...clientes].filter(c => c.casos > 0).sort((a, b) => b.casos - a.casos).slice(0, 10)
+
+  // Top causas imputabilidad y tipo falla
+  const records = data.bdRecords || []
+  const causaMap: Record<string, number> = {}
+  const fallaMap: Record<string, number> = {}
+  records.forEach(r => {
+    const ci = (r.causaImp || '').trim()
+    if (ci && ci !== '-') causaMap[ci] = (causaMap[ci] || 0) + 1
+    const n5 = (r.n5 || '').trim()
+    if (n5 && n5 !== '-') fallaMap[n5] = (fallaMap[n5] || 0) + 1
+  })
+  const top3causas = Object.entries(causaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+
+  // Descargar imagen (usando browser print como fallback)
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      window.print()
+    } finally {
+      setTimeout(() => setDownloading(false), 1000)
+    }
+  }
+
+  const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  const now = new Date().toLocaleString('es-CO')
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between flex-wrap gap-4"
-      >
+    <div className="py-4 space-y-6">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Informe Semanal — Mayoristas</h2>
-          <p className="text-sm text-muted-foreground font-mono mt-1">
-            {adjustedData.dateRange || "Carga un mes para generar el informe"}
-          </p>
+          <h2 className="text-xl font-bold text-foreground tracking-tight">Informe Semanal — Mayoristas {mLabel}</h2>
+          <p className="text-xs text-muted-foreground font-mono mt-1">{mes}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAdjustPanel(!showAdjustPanel)}
-            className={cn(
-              "gap-2",
-              showAdjustPanel && "bg-warning/10 border-warning/50 text-warning"
-            )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setAjusteOpen(!ajusteOpen)
+              if (!ajusteOpen) {
+                setAjSn1Cc((data.sn1 * 100).toFixed(1))
+                setAjSn1Sc((data.sn1s * 100).toFixed(1))
+                setAjTmsCc(formatHMS(data.tms))
+                setAjTmsSc(formatHMS(data.tmss))
+              }
+            }}
+            className="h-9 px-4 rounded-lg border border-border bg-accent text-muted-foreground text-sm font-semibold hover:text-foreground transition-colors"
           >
-            <Settings className="h-4 w-4" />
-            Ajuste manual
-          </Button>
-          <Button onClick={handleCapture} className="gap-2">
-            <Camera className="h-4 w-4" />
-            Descargar imagen
-          </Button>
+            ✏️ Ajuste manual
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            📷 {downloading ? 'Generando...' : 'Descargar imagen'}
+          </button>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Adjustment Panel */}
-      {showAdjustPanel && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="rounded-xl border border-warning/50 bg-warning/5 p-6"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Settings className="h-4 w-4 text-warning" />
-            <span className="text-sm font-semibold text-warning">
-              Modo ajuste — estos valores se usan solo para el informe
-            </span>
+      {/* Panel ajuste manual */}
+      {ajusteOpen && (
+        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5">
+          <p className="text-xs font-bold text-warning mb-4">⚠️ Modo ajuste — estos valores se usan solo para el informe. El dashboard no cambia.</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'SN1 Con COFO (%)', val: ajSn1Cc, set: setAjSn1Cc, ph: '55.9' },
+              { label: 'SN1 Sin COFO (%)', val: ajSn1Sc, set: setAjSn1Sc, ph: '77.7' },
+              { label: 'TMS Con COFO (HH:MM:SS)', val: ajTmsCc, set: setAjTmsCc, ph: '28:18:08' },
+              { label: 'TMS Sin COFO (HH:MM:SS)', val: ajTmsSc, set: setAjTmsSc, ph: '09:45:04' },
+            ].map(f => (
+              <div key={f.label}>
+                <label className="text-[10px] font-semibold text-muted-foreground block mb-1">{f.label}</label>
+                <input
+                  type="text"
+                  value={f.val}
+                  onChange={e => f.set(e.target.value)}
+                  placeholder={f.ph}
+                  className="w-full h-9 rounded-lg border border-warning/30 bg-input px-3 font-mono text-sm text-foreground outline-none focus:border-warning"
+                />
+              </div>
+            ))}
           </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-2">
-                SN1 Con COFO (%)
-              </label>
-              <Input
-                type="number"
-                step="0.1"
-                value={adjustedData.sn1ConCofo}
-                onChange={(e) => setAdjustedData({ ...adjustedData, sn1ConCofo: parseFloat(e.target.value) || 0 })}
-                className="font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-2">
-                SN1 Sin COFO (%)
-              </label>
-              <Input
-                type="number"
-                step="0.1"
-                value={adjustedData.sn1SinCofo}
-                onChange={(e) => setAdjustedData({ ...adjustedData, sn1SinCofo: parseFloat(e.target.value) || 0 })}
-                className="font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-2">
-                TMS Con COFO (HH:MM:SS)
-              </label>
-              <Input
-                type="text"
-                placeholder="21:59:42"
-                value={adjustedData.tmsConCofo}
-                onChange={(e) => setAdjustedData({ ...adjustedData, tmsConCofo: e.target.value })}
-                className="font-mono"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground block mb-2">
-                TMS Sin COFO (HH:MM:SS)
-              </label>
-              <Input
-                type="text"
-                placeholder="08:40:50"
-                value={adjustedData.tmsSinCofo}
-                onChange={(e) => setAdjustedData({ ...adjustedData, tmsSinCofo: e.target.value })}
-                className="font-mono"
-              />
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={resetAdjustments} className="gap-2">
-              <RotateCcw className="h-3.5 w-3.5" />
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => { setAjSn1Cc(''); setAjSn1Sc(''); setAjTmsCc(''); setAjTmsSc('') }}
+              className="h-8 px-3 rounded-lg border border-border bg-accent text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
               Restaurar datos reales
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              TMS en formato HH:MM:SS · SN1 en porcentaje (ej: 57.7)
-            </span>
+            </button>
+            <span className="text-[10px] text-muted-foreground">TMS en HH:MM:SS · SN1 en porcentaje (ej: 57.7)</span>
           </div>
-        </motion.div>
+        </div>
       )}
 
-      {/* Report Preview */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="rounded-2xl border border-border bg-card p-8"
-        id="report-capture"
-      >
-        {/* Report Header */}
-        <div className="flex items-center justify-between mb-8 pb-6 border-b border-border">
+      {/* ═══ SLIDE 1 ═══ */}
+      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6">
+
+        {/* Header slide 1 */}
+        <div className="flex items-center justify-between pb-5 border-b border-border">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-bold text-lg shadow-lg shadow-primary/30">
-              ETB
-            </div>
+            <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-sm">ETB</div>
             <div>
-              <h3 className="text-lg font-bold text-foreground">
-                Informe Semanal Mayoristas
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Customer Operation Success · {adjustedData.month}
-              </p>
+              <p className="text-lg font-bold text-foreground tracking-tight">Semáforo Mayoristas</p>
+              <p className="text-xs text-muted-foreground font-mono">ETB E&G Soporte — Customer Operation Success</p>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-mono font-bold text-primary">{adjustedData.totalCases}</div>
-            <div className="text-xs text-muted-foreground">casos totales</div>
+            <p className="font-mono text-2xl font-bold text-primary tracking-tight">{mLabel}</p>
+            <p className="text-xs text-muted-foreground mt-1">Corte: {today}</p>
           </div>
         </div>
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* SN1 Con COFO */}
-          <div className="rounded-xl border border-border bg-gradient-to-br from-background to-muted/30 p-6 text-center">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              SN1 Con COFO
+        {/* 8 KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <InfKPICard label="SN1 Con COFO"    value={formatPct(sn1)}  sub={`${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`}   status={sn1Status(sn1, metaSn1)} />
+          <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
+          <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
+          <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
+          <InfKPICard label={`Prom TMS s/COFO (${hist.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
+          <InfKPICard label={`Prom TMS c/COFO (${hist.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${hist.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${hist.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
+        </div>
+
+        {/* Top 5 mejor / peor TMS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: 'Top 5 clientes — mejor TMS', data: top5best },
+            { title: 'Top 5 clientes — peor TMS',  data: top5worst },
+          ].map(({ title, data: d }) => (
+            <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
+              <div style={{ height: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={d.map(c => ({ name: c.nombre.length > 18 ? c.nombre.slice(0, 17) + '…' : c.nombre, tms: +(c.tmss ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
+                    <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
+                    <Bar dataKey="tms" radius={[0, 4, 4, 0]} barSize={14}>
+                      {d.map((c, i) => <Cell key={i} fill={(c.tmss ?? 0) <= metaTms ? 'hsl(142 71% 45% / 0.75)' : 'hsl(0 84% 60% / 0.7)'} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className={cn(
-              "text-4xl font-mono font-bold mb-2",
-              adjustedData.sn1ConCofo >= 85 ? "text-success" : 
-              adjustedData.sn1ConCofo >= 70 ? "text-warning" : "text-danger"
-            )}>
-              {adjustedData.sn1ConCofo.toFixed(1)}%
-            </div>
-            <div className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
-              adjustedData.sn1ConCofo >= 85 
-                ? "bg-success/20 text-success" 
-                : adjustedData.sn1ConCofo >= 70 
-                  ? "bg-warning/20 text-warning" 
-                  : "bg-danger/20 text-danger"
-            )}>
-              <span className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                adjustedData.sn1ConCofo >= 85 ? "bg-success" : 
-                adjustedData.sn1ConCofo >= 70 ? "bg-warning" : "bg-danger"
-              )} />
-              {adjustedData.sn1ConCofo >= 85 ? "En objetivo" : 
-               adjustedData.sn1ConCofo >= 70 ? "En seguimiento" : "Fuera de objetivo"}
+          ))}
+        </div>
+
+        {/* Evolución diaria TMS + SN1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">TMS acumulado — evolución del mes</p>
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
+                  <ReferenceLine y={metaTms} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg1)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* SN1 Sin COFO */}
-          <div className="rounded-xl border border-border bg-gradient-to-br from-background to-muted/30 p-6 text-center">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              SN1 Sin COFO
-            </div>
-            <div className={cn(
-              "text-4xl font-mono font-bold mb-2",
-              adjustedData.sn1SinCofo >= 85 ? "text-success" : 
-              adjustedData.sn1SinCofo >= 70 ? "text-warning" : "text-danger"
-            )}>
-              {adjustedData.sn1SinCofo.toFixed(1)}%
-            </div>
-            <div className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
-              adjustedData.sn1SinCofo >= 85 
-                ? "bg-success/20 text-success" 
-                : adjustedData.sn1SinCofo >= 70 
-                  ? "bg-warning/20 text-warning" 
-                  : "bg-danger/20 text-danger"
-            )}>
-              <span className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                adjustedData.sn1SinCofo >= 85 ? "bg-success" : 
-                adjustedData.sn1SinCofo >= 70 ? "bg-warning" : "bg-danger"
-              )} />
-              {adjustedData.sn1SinCofo >= 85 ? "En objetivo" : 
-               adjustedData.sn1SinCofo >= 70 ? "En seguimiento" : "Fuera de objetivo"}
-            </div>
-          </div>
-
-          {/* TMS Con COFO */}
-          <div className="rounded-xl border border-border bg-gradient-to-br from-background to-muted/30 p-6 text-center">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              TMS Con COFO
-            </div>
-            <div className="text-4xl font-mono font-bold mb-2 text-primary">
-              {adjustedData.tmsConCofo}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              formato HH:MM:SS
-            </div>
-          </div>
-
-          {/* TMS Sin COFO */}
-          <div className="rounded-xl border border-border bg-gradient-to-br from-background to-muted/30 p-6 text-center">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-              TMS Sin COFO
-            </div>
-            <div className="text-4xl font-mono font-bold mb-2 text-primary">
-              {adjustedData.tmsSinCofo}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              formato HH:MM:SS
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum.map(d => ({ ...d, sn1: sn1 * 100, sn1s: sn1s * 100 }))} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
+                  <ReferenceLine y={metaSn1 * 100} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg3)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">
-            ETB E&G Soporte · Customer Operation Success
+        {/* Histórico 6 meses TMS + SN1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: 'TMS mensual — tendencia', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
+            { title: 'SN1 mensual — tendencia',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
+          ].map(({ title, scKey, ccKey, meta, fmt, yDomain }) => {
+            const isSN1 = scKey === 'sn1_sc'
+            const chartData = hist.map(h => ({
+              mes: h.mes,
+              sc: isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
+              cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
+            }))
+            return (
+              <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
+                <div style={{ height: 150 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
+                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
+                      <Tooltip content={<DarkTooltip formatter={fmt} />} />
+                      <ReferenceLine y={meta} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer slide 1 */}
+        <div className="flex justify-between items-center pt-4 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
+        </div>
+      </div>
+
+      {/* Separador */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-border" />
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Diapositiva 2 — Top 10 Clientes</p>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* ═══ SLIDE 2 ═══ */}
+      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5">
+
+        {/* Header slide 2 */}
+        <div className="flex items-center justify-between pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-xs">ETB</div>
+            <div>
+              <p className="text-sm font-bold text-foreground tracking-tight">Top 10 Clientes Mayoristas</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Mes: {mLabel} · Corte: {today}</p>
+            </div>
           </div>
-          <div className="text-xs font-mono text-muted-foreground">
-            Generado: {new Date().toLocaleDateString("es-ES", { 
-              day: "2-digit", 
-              month: "short", 
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit"
+          <p className="font-mono text-xl font-bold text-primary tracking-tight">{mLabel}</p>
+        </div>
+
+        {/* Top 3 causas */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Causa Imputabilidad</p>
+          <div className="grid grid-cols-3 gap-3">
+            {top3causas.map(([causa, n], i) => {
+              const colors = ['border-l-primary', 'border-l-success', 'border-l-warning']
+              const txtColors = ['text-primary', 'text-success', 'text-warning']
+              const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
+              return (
+                <div key={causa} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">#{i + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3 leading-tight">{causa}</p>
+                  <p className={cn('font-mono text-2xl font-bold', txtColors[i])}>{n}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">casos · {pct}% del total</p>
+                </div>
+              )
             })}
           </div>
         </div>
-      </motion.div>
+
+        {/* Top 3 tipo falla */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Tipo de Falla (N5)</p>
+          <div className="grid grid-cols-3 gap-3">
+            {top3fallas.map(([falla, n], i) => {
+              const colors = ['border-l-[hsl(262_83%_58%)]', 'border-l-[hsl(199_89%_48%)]', 'border-l-[hsl(173_58%_39%)]']
+              const txtColors = ['text-[hsl(262_83%_70%)]', 'text-[hsl(199_89%_60%)]', 'text-[hsl(173_58%_55%)]']
+              const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
+              return (
+                <div key={falla} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">#{i + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3 leading-tight">{falla}</p>
+                  <p className={cn('font-mono text-2xl font-bold', txtColors[i])}>{n}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">casos · {pct}% del total</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tabla top 10 clientes */}
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gradient-to-r from-blue-900 to-blue-700">
+                <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Cliente</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Casos</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center border-l-2 border-white/20" colSpan={4}>SIN COFO</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center border-l-2 border-white/20" colSpan={4}>CON COFO</th>
+              </tr>
+              <tr className="bg-blue-800">
+                {['TMS', 'SN1%', 'HDP', 'Esc.', 'TMS', 'SN1%', 'HDP', 'Esc.'].map((h, i) => (
+                  <th key={i} className={cn('px-2 py-1.5 text-white/80 font-semibold text-center text-[10px]', i === 4 && 'border-l-2 border-white/20')}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {top10.map((c, i) => {
+                const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
+                const sn1Pct  = c.sn1_n  > 0 ? (c.sn1_hdp  / c.sn1_n  * 100).toFixed(1) + '%' : '—'
+                const okTmss = (c.tmss ?? 0) <= metaTms
+                const okTms  = (c.tms  ?? 0) <= metaTms
+                const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+                const okSn1  = c.sn1_n  > 0 && c.sn1_hdp  / c.sn1_n  >= metaSn1
+                return (
+                  <tr key={c.nit || i} className={i % 2 === 0 ? 'bg-card' : 'bg-accent/20'}>
+                    <td className="px-3 py-2 font-semibold text-foreground text-center border-b border-border/50">
+                      {c.nombre.slice(0, 32)}
+                    </td>
+                    <td className="px-3 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.casos}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50 border-l border-border/30', okTmss ? 'text-success' : 'text-danger')}>{c.tmss !== null ? formatHMS(c.tmss) : '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50', okSn1s ? 'text-success' : 'text-danger')}>{sn1sPct}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1s_hdp ?? '—'}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1s_esc ?? '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50 border-l border-border/30', okTms ? 'text-success' : 'text-danger')}>{c.tms !== null ? formatHMS(c.tms) : '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50', okSn1 ? 'text-success' : 'text-danger')}>{sn1Pct}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1_hdp ?? '—'}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1_esc ?? '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer slide 2 */}
+        <div className="flex justify-between items-center pt-4 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
+        </div>
+      </div>
     </div>
   )
 }
