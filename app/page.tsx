@@ -6,7 +6,6 @@ import { RefreshCw, Download, Activity, Database, Calendar, Camera } from 'lucid
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel, mesActual } from '@/lib/utils'
 import type { MetricasData, CierreResumen } from '@/lib/gas'
 
-// ── Componentes internos ─────────────────────────────────────
 import { SplashScreen }   from '@/components/dashboard/splash-screen'
 import { KPIGrid }        from '@/components/dashboard/kpi-cards'
 import { ChartsSection }  from '@/components/dashboard/charts'
@@ -18,15 +17,13 @@ import { ReportView }     from '@/components/dashboard/report-view'
 const META_SN1 = 0.70
 const META_TMS = 11.5
 
-// ── Tabs ─────────────────────────────────────────────────────
 const TABS = [
   { id: 'dashboard', label: 'Dashboard',     icon: Activity  },
-  { id: 'database',  label: 'Base de datos', icon: Database  },
+  { id: 'database',  label: 'BD',            icon: Database  },
   { id: 'cierres',   label: 'Cierres',       icon: Calendar  },
-  { id: 'informe',   label: 'Informe',        icon: Camera    },
+  { id: 'informe',   label: 'Informe',       icon: Camera    },
 ]
 
-// ── Helper: llamar al proxy /api/gas ─────────────────────────
 async function gasCall(action: string, params: Record<string,string> = {}) {
   const url = new URL('/api/gas', window.location.origin)
   url.searchParams.set('action', action)
@@ -37,20 +34,18 @@ async function gasCall(action: string, params: Record<string,string> = {}) {
 }
 
 export default function Dashboard() {
-  const [loading,     setLoading]     = useState(true)
-  const [progress,    setProgress]    = useState(0)
-  const [loadMsg,     setLoadMsg]     = useState('Conectando con Salesforce...')
-  const [activeTab,   setActiveTab]   = useState('dashboard')
-  const [refreshing,  setRefreshing]  = useState(false)
-  const [mes,         setMes]         = useState(mesActual)
-  const [data,        setData]        = useState<MetricasData | null>(null)
-  const [error,       setError]       = useState<string | null>(null)
-  const [cierres,     setCierres]     = useState<CierreResumen[]>([])
-  const [service,     setService]     = useState('')
-  const [tipo,        setTipo]        = useState('')
-  const [cliente,     setCliente]     = useState('')
+  const [loading,    setLoading]    = useState(true)
+  const [progress,   setProgress]   = useState(0)
+  const [loadMsg,    setLoadMsg]    = useState('Conectando con Salesforce...')
+  const [activeTab,  setActiveTab]  = useState('dashboard')
+  const [refreshing, setRefreshing] = useState(false)
+  const [mes,        setMes]        = useState(mesActual)
+  const [data,       setData]       = useState<MetricasData | null>(null)
+  const [error,      setError]      = useState<string | null>(null)
+  const [service,    setService]    = useState('')
+  const [tipo,       setTipo]       = useState('')
+  const [cliente,    setCliente]    = useState('')
 
-  // ── Carga de métricas ──────────────────────────────────────
   const cargar = useCallback(async (mesParam?: string) => {
     const mesTarget = mesParam || mes
     setRefreshing(true)
@@ -92,13 +87,6 @@ export default function Dashboard() {
 
   const handleLoad = () => cargar(mes)
 
-  const handleExport = () => {
-    // Reutiliza la misma lógica de exportación que tenía el index.html
-    if (!data) return
-    alert('Exportación disponible — integra xlsx.js aquí si lo necesitas')
-  }
-
-  // ── KPI con filtros aplicados ──────────────────────────────
   const clientesFiltrados = data?.clientes?.filter(c => {
     if (service && c.servicio !== service) return false
     if (tipo    && c.tipo    !== tipo)    return false
@@ -122,10 +110,9 @@ export default function Dashboard() {
       {!loading && (
         <div className="min-h-screen bg-background">
 
-          {/* ── HEADER ─────────────────────────────────────── */}
+          {/* HEADER */}
           <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
             <div className="flex h-[60px] items-center justify-between px-4 lg:px-6">
-              {/* Logo */}
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 border border-primary/30 text-primary font-bold text-sm">
                   ETB
@@ -136,7 +123,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Nav tabs */}
+              {/* Tabs desktop */}
               <nav className="hidden md:flex items-center gap-1">
                 {TABS.map(tab => {
                   const Icon = tab.icon
@@ -159,20 +146,12 @@ export default function Dashboard() {
                 })}
               </nav>
 
-              {/* Actions */}
               <div className="flex items-center gap-2">
                 {data && (
                   <span className="hidden sm:inline font-mono text-[10px] text-muted-foreground">
                     {formatN(data.totalMayoristas)} casos
                   </span>
                 )}
-                <button
-                  onClick={handleExport}
-                  className="hidden sm:flex items-center gap-2 text-xs border border-success/40 text-success bg-success/10 hover:bg-success/15 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Exportar
-                </button>
                 <button
                   onClick={handleLoad}
                   disabled={refreshing}
@@ -185,134 +164,130 @@ export default function Dashboard() {
             </div>
 
             {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 lg:px-6 border-t border-border bg-card/40">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Mes</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="month"
-                  value={mes}
-                  onChange={e => setMes(e.target.value)}
-                  className="h-8 w-auto rounded-lg border border-border bg-input px-3 text-sm font-mono text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <button
-                  onClick={handleLoad}
-                  disabled={refreshing}
-                  className="h-8 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  Cargar
-                </button>
-              </div>
-
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2 lg:px-6 border-t border-border bg-card/40 overflow-x-auto">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Mes</span>
+              <input
+                type="month"
+                value={mes}
+                onChange={e => setMes(e.target.value)}
+                className="h-8 rounded-lg border border-border bg-input px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none"
+              />
+              <button
+                onClick={handleLoad}
+                disabled={refreshing}
+                className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+              >
+                Cargar
+              </button>
               <div className="h-5 w-px bg-border hidden sm:block" />
-
-              {/* Servicio */}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Servicio</span>
               <select
                 value={service}
                 onChange={e => setService(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none"
               >
-                <option value="">Todos</option>
+                <option value="">Servicio</option>
                 <option value="Avanzado">Avanzado</option>
                 <option value="Basico">Basico</option>
               </select>
-
-              {/* Tipo */}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo</span>
               <select
                 value={tipo}
                 onChange={e => setTipo(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none"
               >
-                <option value="">Todos</option>
+                <option value="">Tipo</option>
                 {[...new Set(data?.clientes.map(c => c.tipo) || [])].map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-
-              {/* Cliente */}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</span>
               <select
                 value={cliente}
                 onChange={e => setCliente(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none max-w-[140px]"
               >
-                <option value="">Todos</option>
+                <option value="">Cliente</option>
                 {[...(data?.clientes || [])].sort((a,b) => a.nombre.localeCompare(b.nombre)).map(c => (
                   <option key={c.nit} value={c.nit}>{c.nombre}</option>
                 ))}
               </select>
-
               <button
                 onClick={() => { setService(''); setTipo(''); setCliente('') }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
               >
                 Limpiar
               </button>
-
               <div className="ml-auto">
-                <span className="inline-flex items-center rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-[10px] font-bold text-primary font-mono">
+                <span className="inline-flex items-center rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-[10px] font-bold text-primary font-mono whitespace-nowrap">
                   {formatN(data?.totalMayoristas || 0)} casos
                 </span>
               </div>
             </div>
           </header>
 
-          {/* ── MAIN ───────────────────────────────────────── */}
-          <main className="px-4 py-6 lg:px-6 max-w-[1800px] mx-auto">
+          {/* MAIN */}
+          <main className="px-4 py-6 pb-24 lg:px-6 max-w-[1800px] mx-auto">
 
-            {/* Dashboard */}
             {activeTab === 'dashboard' && data && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-6"
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                 <SectionHeader label="Resumen del período" />
                 <KPIGrid data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
-
                 <SectionHeader label="Evolución diaria del mes" />
                 <ChartsSection data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
-
                 <SectionHeader label="TMS y SN1 por cliente" />
                 <ClientTable clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
               </motion.div>
             )}
 
-            {/* BD */}
             {activeTab === 'database' && data && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <DatabaseTable records={data.bdRecords || []} />
               </motion.div>
             )}
 
-            {/* Cierres */}
             {activeTab === 'cierres' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <ClosuresView
-                  mes={mes}
-                  onGasCall={gasCall}
-                />
+                <ClosuresView mes={mes} onGasCall={gasCall} />
               </motion.div>
             )}
 
-            {/* Informe */}
             {activeTab === 'informe' && data && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <ReportView data={data} mes={mes} metaSn1={META_SN1} metaTms={META_TMS} />
               </motion.div>
             )}
 
-            {/* Estado vacío */}
             {!data && !loading && (
               <div className="flex flex-col items-center justify-center py-32 gap-4">
                 <p className="text-muted-foreground text-sm">No hay datos cargados.</p>
-                <button onClick={handleLoad} className="text-sm text-primary hover:underline">
-                  Cargar datos
-                </button>
+                <button onClick={handleLoad} className="text-sm text-primary hover:underline">Cargar datos</button>
               </div>
             )}
           </main>
+
+          {/* NAV MÓVIL — solo visible en pantallas pequeñas */}
+          <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-card/95 backdrop-blur-xl">
+            <div className="flex items-center justify-around h-16 px-2">
+              {TABS.map(tab => {
+                const Icon = tab.icon
+                const active = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all',
+                      active
+                        ? 'text-primary bg-primary/10'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-[10px] font-semibold">{tab.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </nav>
+
         </div>
       )}
     </>
