@@ -20,31 +20,23 @@ interface ClosuresViewProps {
 
 // ── Detalle del cierre con gráficas ───────────────────────────
 function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle: any | null }) {
-  const r = selected.resumen
+  // Usar detalle completo cuando está disponible (tiene sn1s_hdp, sn1s_n correctos)
+  const r = detalle ? { ...selected.resumen, ...detalle } : selected.resumen
   const serieDia: any[] = detalle?.serieDia || []
   const clientes: any[] = detalle?.clientes || []
 
   const acum = (() => {
     if (!serieDia.length) return []
     let ts = 0, tn = 0, tss = 0, tns = 0
-    let sn1hdp = 0, sn1n = 0, sn1shdp = 0, sn1sn = 0
-    // Calcular TMS máximo para normalizar la variación del SN1
-    const tmsMax = Math.max(...serieDia.map((d: any) => d.tms || 0), 1)
     return serieDia.map((d: any) => {
       tn += d.casos; ts += d.tms  * d.casos
       tns += d.casos; tss += d.tmss * d.casos
-      // Variar SN1 inversamente al TMS del día — días con mayor TMS tienden a tener menor SN1
-      const factorDia = 1 - ((d.tms || 0) / tmsMax) * 0.15
-      sn1n   += d.casos
-      sn1hdp += Math.round(d.casos * r.sn1  * factorDia)
-      sn1sn  += d.casos
-      sn1shdp += Math.round(d.casos * r.sn1s * factorDia)
       return {
         fecha: d.fecha.slice(5),
         tmsCC: tn  > 0 ? ts  / tn  : null,
         tmsSC: tns > 0 ? tss / tns : null,
-        sn1CC: sn1n  > 0 ? Math.min(sn1hdp  / sn1n  * 100, 100) : null,
-        sn1SC: sn1sn > 0 ? Math.min(sn1shdp / sn1sn * 100, 100) : null,
+        sn1CC: r.sn1  * 100,
+        sn1SC: r.sn1s * 100,
       }
     })
   })()
