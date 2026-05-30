@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { RefreshCw, FolderOpen, Lock, Check, X, Download } from 'lucide-react'
+import { RefreshCw, FolderOpen, Lock, Check, X } from 'lucide-react'
 import {
-  AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts'
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, mesLabel } from '@/lib/utils'
 import type { CierreResumen } from '@/lib/gas'
@@ -18,92 +18,82 @@ interface ClosuresViewProps {
   onGasCall: (action: string, params?: Record<string,string>) => Promise<any>
 }
 
-// Componente de detalle del cierre con gráficas
+// ── Detalle del cierre con gráficas ───────────────────────────
 function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle: any | null }) {
   const r = selected.resumen
-  const serieDia = detalle?.serieDia || (r as any).serieDia || []
+  const serieDia: any[] = detalle?.serieDia || []
+  const clientes: any[] = detalle?.clientes || []
 
-  // Calcular acumulado desde serieDia
   const acum = (() => {
     if (!serieDia.length) return []
-    let ts=0,tn=0,tss=0,tns=0
+    let ts = 0, tn = 0, tss = 0, tns = 0
     return serieDia.map((d: any) => {
-      tn+=d.casos; ts+=d.tms*d.casos
-      tns+=d.casos; tss+=d.tmss*d.casos
+      tn += d.casos; ts += d.tms * d.casos
+      tns += d.casos; tss += d.tmss * d.casos
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: tn>0?ts/tn:null,
-        tmsSC: tns>0?tss/tns:null,
-        sn1CC: r.sn1*100,
-        sn1SC: r.sn1s*100,
+        tmsCC: tn > 0 ? ts / tn : null,
+        tmsSC: tns > 0 ? tss / tns : null,
+        sn1CC: r.sn1 * 100,
+        sn1SC: r.sn1s * 100,
       }
     })
   })()
 
-  const clientes: any[] = detalle?.clientes || (r as any).clientes || []
+  const kpis = [
+    { label: 'SN1 Con COFO', value: formatPct(r.sn1),  sub: `${r.sn1_hdp||0} HDP / ${r.sn1_n||0} casos`,  status: sn1Status(r.sn1, META_SN1) },
+    { label: 'SN1 Sin COFO', value: formatPct(r.sn1s), sub: `${r.sn1s_hdp||0} HDP / ${r.sn1s_n||0} casos`, status: sn1Status(r.sn1s, META_SN1) },
+    { label: 'TMS Con COFO', value: formatHMS(r.tms),  sub: `${r.tms_n||0} casos · Meta ${META_TMS}h`,     status: tmsStatus(r.tms, META_TMS) },
+    { label: 'TMS Sin COFO', value: formatHMS(r.tmss), sub: `${r.tmss_n||0} casos · Meta ${META_TMS}h`,    status: tmsStatus(r.tmss, META_TMS) },
+  ]
+
+  const borderC = (s: string) => s === 'success' ? 'border-l-success' : s === 'danger' ? 'border-l-danger' : 'border-l-warning'
+  const valC    = (s: string) => s === 'success' ? 'text-success'     : s === 'danger' ? 'text-danger'     : 'text-warning'
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-5"
-    >
-      {/* Header */}
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+
+      {/* Header + KPIs */}
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h2 className="font-mono text-2xl font-bold text-primary">
-              Cierre: {mesLabel(selected.mesAnio)}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Capturado: {selected.fechaCaptura}
-            </p>
+            <h2 className="font-mono text-2xl font-bold text-primary">Cierre: {mesLabel(selected.mesAnio)}</h2>
+            <p className="text-xs text-muted-foreground mt-1">Capturado: {selected.fechaCaptura}</p>
           </div>
           <span className="font-mono text-sm text-muted-foreground border border-border rounded-lg px-3 py-1.5">
             {formatN(r.totalMayoristas)} casos
           </span>
         </div>
-
-        {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { label: 'SN1 Con COFO', value: formatPct(r.sn1),  sub: `${r.sn1_hdp} HDP / ${r.sn1_n} casos`,   status: sn1Status(r.sn1, META_SN1) },
-            { label: 'SN1 Sin COFO', value: formatPct(r.sn1s), sub: `${r.sn1s_hdp} HDP / ${r.sn1s_n} casos`,  status: sn1Status(r.sn1s, META_SN1) },
-            { label: 'TMS Con COFO', value: formatHMS(r.tms),  sub: `${r.tms_n} casos · Meta ${META_TMS}h`,   status: tmsStatus(r.tms, META_TMS) },
-            { label: 'TMS Sin COFO', value: formatHMS(r.tmss), sub: `${r.tmss_n} casos · Meta ${META_TMS}h`,  status: tmsStatus(r.tmss, META_TMS) },
-          ].map((k, i) => {
-            const borderC = k.status === 'success' ? 'border-l-success' : k.status === 'danger' ? 'border-l-danger' : 'border-l-warning'
-            const valC    = k.status === 'success' ? 'text-success'     : k.status === 'danger' ? 'text-danger'     : 'text-warning'
-            return (
-              <div key={i} className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderC)}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.label}</p>
-                <p className={cn('font-mono text-xl font-bold mb-1', valC)}>{k.value}</p>
-                <p className="text-[10px] text-muted-foreground">{k.sub}</p>
-              </div>
-            )
-          })}
+          {kpis.map((k, i) => (
+            <div key={i} className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderC(k.status))}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.label}</p>
+              <p className={cn('font-mono text-xl font-bold mb-1', valC(k.status))}>{k.value}</p>
+              <p className="text-[10px] text-muted-foreground">{k.sub}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Gráficas acumuladas */}
       {acum.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[
-            { title: 'TMS acumulado (datos congelados)', keyCC: 'tmsCC', keySC: 'tmsSC', meta: META_TMS, fmt: (v: number) => `${v.toFixed(1)}h`, yFmt: (v: number) => `${v}h`, domain: undefined as any },
-            { title: 'SN1 acumulado (%)',                keyCC: 'sn1CC', keySC: 'sn1SC', meta: META_SN1*100, fmt: (v: number) => `${v.toFixed(1)}%`, yFmt: (v: number) => `${v}%`, domain: [0, 110] },
-          ].map(({ title, keyCC, keySC, meta, fmt, yFmt, domain }) => (
+          {([
+            { title: 'TMS acumulado (datos congelados)', cc: 'tmsCC', sc: 'tmsSC', meta: META_TMS,       fmt: (v: number) => `${v.toFixed(1)}h`,  yFmt: (v: number) => `${v}h`,  domain: undefined as any },
+            { title: 'SN1 acumulado (%)',                cc: 'sn1CC', sc: 'sn1SC', meta: META_SN1 * 100, fmt: (v: number) => `${v.toFixed(1)}%`, yFmt: (v: number) => `${v}%`, domain: [0, 110] as any },
+          ] as const).map(({ title, cc, sc, meta, fmt, yFmt, domain }) => (
             <div key={title} className="rounded-xl border border-border bg-card p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
               <div className="h-[180px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={acum} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                     <defs>
-                      <linearGradient id={`cg1${keyCC}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2}/>
+                      <linearGradient id={`g1${cc}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/>
                       </linearGradient>
-                      <linearGradient id={`cg2${keySC}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.15}/>
+                      <linearGradient id={`g2${sc}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#34d399" stopOpacity={0.15}/>
                         <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
@@ -112,11 +102,11 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
                     <YAxis domain={domain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={yFmt} width={32} />
                     <Tooltip
                       contentStyle={{ background: '#111113', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }}
-                      formatter={(v: any) => [fmt(v)]}
+                      formatter={(v: any) => [fmt(Number(v))]}
                     />
                     <ReferenceLine y={meta} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
-                    <Area type="monotone" dataKey={keyCC} name="Con COFO" stroke="#60a5fa" fill={`url(#cg1${keyCC})`} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
-                    <Area type="monotone" dataKey={keySC} name="Sin COFO" stroke="#34d399" fill={`url(#cg2${keySC})`} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />
+                    <Area type="monotone" dataKey={cc} name="Con COFO" stroke="#60a5fa" fill={`url(#g1${cc})`} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                    <Area type="monotone" dataKey={sc} name="Sin COFO" stroke="#34d399" fill={`url(#g2${sc})`} strokeWidth={2}   dot={false} activeDot={{ r: 4 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -151,18 +141,10 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
                       <p className="text-[10px] font-mono text-muted-foreground">{c.nit}</p>
                     </td>
                     <td className="px-4 py-3 text-center font-mono text-muted-foreground">{c.casos}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn('font-mono font-bold text-xs', (c.tms||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tms)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn('font-mono font-bold text-xs', (c.sn1||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1?formatPct(c.sn1):'—'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn('font-mono font-bold text-xs', (c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={cn('font-mono font-bold text-xs', (c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</span>
-                    </td>
+                    <td className="px-4 py-3 text-center"><span className={cn('font-mono font-bold', (c.tms||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tms)}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={cn('font-mono font-bold', (c.sn1||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1?formatPct(c.sn1):'—'}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={cn('font-mono font-bold', (c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={cn('font-mono font-bold', (c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -175,8 +157,14 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
                 <p className="text-sm font-semibold text-foreground">{c.nombre}</p>
                 <p className="text-[10px] font-mono text-muted-foreground mb-2">{c.nit} · {c.casos} casos</p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div><p className="text-[9px] text-muted-foreground">TMS s/COFO</p><p className={cn('font-mono text-sm font-bold',(c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</p></div>
-                  <div><p className="text-[9px] text-muted-foreground">SN1 s/COFO</p><p className={cn('font-mono text-sm font-bold',(c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</p></div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">TMS s/COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-muted-foreground">SN1 s/COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -187,16 +175,17 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
   )
 }
 
+// ── Componente principal ───────────────────────────────────────
 export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
-  const [cierres,     setCierres]     = useState<CierreResumen[]>([])
-  const [selected,     setSelected]    = useState<CierreResumen | null>(null)
-  const [detalle,      setDetalle]     = useState<any | null>(null)
-  const [loadingDet,   setLoadingDet]  = useState(false)
-  const [loading,      setLoading]     = useState(true)
-  const [loadingMes,   setLoadingMes]  = useState('')
-  const [status,       setStatus]      = useState<{ msg: string; ok?: boolean } | null>(null)
-  const [importMes,    setImportMes]   = useState(mes)
-  const [closeMes,     setCloseMes]    = useState(mes)
+  const [cierres,    setCierres]    = useState<CierreResumen[]>([])
+  const [selected,   setSelected]   = useState<CierreResumen | null>(null)
+  const [detalle,    setDetalle]    = useState<any | null>(null)
+  const [loadingDet, setLoadingDet] = useState(false)
+  const [loading,    setLoading]    = useState(true)
+  const [loadingMes, setLoadingMes] = useState('')
+  const [status,     setStatus]     = useState<{ msg: string; ok?: boolean } | null>(null)
+  const [importMes,  setImportMes]  = useState(mes)
+  const [closeMes,   setCloseMes]   = useState(mes)
 
   const cargarLista = async () => {
     setLoading(true)
@@ -268,11 +257,9 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
   return (
     <div className="space-y-5 py-4">
 
-
-      {/* Panels de gestión */}
+      {/* Panels Drive + SF */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        {/* Drive */}
         <div className="rounded-xl border border-success/20 bg-success/5 p-5">
           <div className="flex items-center gap-2 mb-2">
             <FolderOpen className="h-4 w-4 text-success" />
@@ -298,7 +285,6 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
           </div>
         </div>
 
-        {/* Salesforce */}
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
           <div className="flex items-center gap-2 mb-2">
             <Lock className="h-4 w-4 text-primary" />
@@ -367,12 +353,16 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
             No hay cierres guardados aún.
           </div>
         ) : (
-          <div className="flex gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 xl:grid-cols-6 lg:overflow-visible" style={{ scrollSnapType: 'x mandatory' }}>
+          <div
+            className="flex gap-3 overflow-x-auto pb-2 lg:grid lg:grid-cols-4 xl:grid-cols-6 lg:overflow-visible"
+            style={{ scrollSnapType: 'x mandatory' }}
+          >
             {cierres.map(c => {
               const r = c.resumen
               const okTms = r.tmss <= META_TMS
               const okSn1 = r.sn1s >= META_SN1
               const allOk = okTms && okSn1
+              const isSelected = selected?.mesAnio === c.mesAnio
               return (
                 <motion.button
                   key={c.mesAnio}
@@ -382,7 +372,7 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
                   style={{ minWidth: '160px', scrollSnapAlign: 'start' }}
                   className={cn(
                     'text-left rounded-xl border p-4 transition-all flex-shrink-0 lg:flex-shrink',
-                    selected?.mesAnio === c.mesAnio
+                    isSelected
                       ? 'border-primary/40 bg-primary/10 shadow-lg shadow-primary/10'
                       : 'border-border bg-card/50 hover:border-border/80 hover:bg-accent/50'
                   )}
@@ -395,21 +385,15 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
                     {allOk ? 'En objetivo' : 'Fuera'}
                   </div>
                   <p className="font-mono text-sm font-bold text-primary">{mesLabel(c.mesAnio)}</p>
-                  <p className="text-[9px] text-muted-foreground mt-0.5 mb-3">
-                    {c.fechaCaptura?.slice(0, 10)}
-                  </p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5 mb-3">{c.fechaCaptura?.slice(0, 10)}</p>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                     <div>
                       <p className="text-[9px] text-muted-foreground uppercase">TMS s/COFO</p>
-                      <p className={cn('text-xs font-bold font-mono', okTms ? 'text-success' : 'text-danger')}>
-                        {formatHMS(r.tmss)}
-                      </p>
+                      <p className={cn('text-xs font-bold font-mono', okTms ? 'text-success' : 'text-danger')}>{formatHMS(r.tmss)}</p>
                     </div>
                     <div>
                       <p className="text-[9px] text-muted-foreground uppercase">SN1 s/COFO</p>
-                      <p className={cn('text-xs font-bold font-mono', okSn1 ? 'text-success' : 'text-danger')}>
-                        {formatPct(r.sn1s)}
-                      </p>
+                      <p className={cn('text-xs font-bold font-mono', okSn1 ? 'text-success' : 'text-danger')}>{formatPct(r.sn1s)}</p>
                     </div>
                   </div>
                   <p className="text-[9px] text-muted-foreground mt-2">{formatN(r.totalMayoristas)} casos</p>
@@ -422,15 +406,13 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
 
       {/* Detalle del cierre seleccionado */}
       {selected && (
-        {loadingDet ? (
+        loadingDet ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <RefreshCw className="h-5 w-5 animate-spin mr-2" /> Cargando detalle...
           </div>
-        ) : detalle ? (
-          <CierreDetalle selected={selected} detalle={detalle} />
         ) : (
-          <CierreDetalle selected={selected} detalle={null} />
-        )}
+          <CierreDetalle selected={selected} detalle={detalle} />
+        )
       )}
     </div>
   )
