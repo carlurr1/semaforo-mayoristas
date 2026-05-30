@@ -394,7 +394,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                   <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2}  dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -415,7 +415,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                   <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}  dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
