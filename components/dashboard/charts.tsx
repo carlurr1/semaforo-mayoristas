@@ -247,7 +247,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                 <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showTmsCC && <Area type="monotone" dataKey="tmsCC" name="Con COFO" stroke="#60a5fa" fill="url(#gTmsCC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2}  dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -280,7 +280,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                 <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showSn1CC && <Area type="monotone" dataKey="sn1CC" name="Con COFO" stroke="#60a5fa" fill="url(#gSn1CC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2}  dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
