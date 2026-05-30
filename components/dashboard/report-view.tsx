@@ -23,17 +23,76 @@ const HIST_BASE = [
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
 ]
 
-// Calcular acumulado diario desde serieDia
-function calcAcumulado(serieDia: SerieDia[]) {
-  if (!serieDia?.length) return []
-  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0
+// Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
+function calcAcumulado(data: MetricasData) {
+  const records = data.bdRecords || []
+  const serieDia = data.serieDia || []
+  if (!serieDia.length) return []
+
+  // Si hay bdRecords, calcular desde ahí (más preciso)
+  if (records.length > 0) {
+    type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
+    const byFecha: Record<string, DayAcc> = {}
+    records.forEach(r => {
+      const f = (r.cierre || '').slice(0, 10)
+      if (!f) return
+      if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+      const d = byFecha[f]
+      const masRaw = (r.masivo || '').toUpperCase().trim()
+      const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
+      const mTMS = masRaw === 'CORTE DE CABLE'
+      if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
+      if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
+      if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
+      if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
+    })
+    const hasDates = Object.keys(byFecha).length > 0
+    if (hasDates) {
+      const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+      return serieDia.map(d => {
+        const f = d.fecha.slice(0, 10)
+        if (byFecha[f]) {
+          const b = byFecha[f]
+          acc.tms_s += b.tms_s; acc.tms_n += b.tms_n
+          acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
+          acc.sn1_n += b.sn1_n; acc.sn1_hdp += b.sn1_hdp
+          acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
+        } else {
+          // día sin registros — usar proporción global para SN1
+          const cas = d.casos
+          acc.tms_n += cas; acc.tms_s += d.tms * cas
+          acc.tmss_n += cas; acc.tmss_s += d.tmss * cas
+          acc.sn1_n += cas; acc.sn1_hdp += Math.round(cas * data.sn1)
+          acc.sn1s_n += cas; acc.sn1s_hdp += Math.round(cas * data.sn1s)
+        }
+        return {
+          fecha: d.fecha.slice(5),
+          tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+          tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+          sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+          sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
+        }
+      })
+    }
+  }
+
+  // Fallback: solo serieDia — TMS desde serie, SN1 con variación simulada desde proporción global
+  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0, total = 0
+  const totalCasos = serieDia.reduce((s, d) => s + d.casos, 0)
+  let hdpAcc = 0, hdpsAcc = 0
   return serieDia.map(d => {
     tms_n += d.casos; tms_s += d.tms * d.casos
     tmss_n += d.casos; tmss_s += d.tmss * d.casos
+    total += d.casos
+    // Distribuir HDP proporcionalmente por día
+    hdpAcc  += Math.round(d.casos * data.sn1)
+    hdpsAcc += Math.round(d.casos * data.sn1s)
     return {
       fecha: d.fecha.slice(5),
       tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
       tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
+      sn1:  total  > 0 ? hdpAcc  / total  * 100 : null,
+      sn1s: total  > 0 ? hdpsAcc / total  * 100 : null,
     }
   })
 }
@@ -161,7 +220,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   }
 
   // Acumulado diario
-  const acum = calcAcumulado(data.serieDia || [])
+  const acum = calcAcumulado(data)
 
   // Top clientes
   const clientes = data.clientes || []
@@ -333,9 +392,9 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
                   <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                  <ReferenceLine y={metaTms} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
-                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg1)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -345,7 +404,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum.map(d => ({ ...d, sn1: sn1 * 100, sn1s: sn1s * 100 }))} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -354,9 +413,9 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
                   <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
-                  <ReferenceLine y={metaSn1 * 100} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
-                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg3)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -385,7 +444,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
-                      <ReferenceLine y={meta} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                      <ReferenceLine y={meta} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                       <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
                       <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
                     </LineChart>
@@ -465,8 +524,8 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
           </div>
         </div>
 
-        {/* Tabla top 10 clientes */}
-        <div className="overflow-x-auto rounded-xl border border-border">
+        {/* Tabla top 10 clientes — desktop */}
+        <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gradient-to-r from-blue-900 to-blue-700">
@@ -491,9 +550,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                 const okSn1  = c.sn1_n  > 0 && c.sn1_hdp  / c.sn1_n  >= metaSn1
                 return (
                   <tr key={c.nit || i} className={i % 2 === 0 ? 'bg-card' : 'bg-accent/20'}>
-                    <td className="px-3 py-2 font-semibold text-foreground text-center border-b border-border/50">
-                      {c.nombre.slice(0, 32)}
-                    </td>
+                    <td className="px-3 py-2 font-semibold text-foreground text-center border-b border-border/50">{c.nombre.slice(0, 32)}</td>
                     <td className="px-3 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.casos}</td>
                     <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50 border-l border-border/30', okTmss ? 'text-success' : 'text-danger')}>{c.tmss !== null ? formatHMS(c.tmss) : '—'}</td>
                     <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50', okSn1s ? 'text-success' : 'text-danger')}>{sn1sPct}</td>
@@ -508,6 +565,48 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Top 10 móvil — tarjetas */}
+        <div className="md:hidden space-y-2">
+          {top10.map((c, i) => {
+            const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
+            const okTmss = (c.tmss ?? 0) <= metaTms
+            const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+            return (
+              <div key={c.nit || i} className="rounded-xl border border-border bg-card/50 p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-bold text-foreground leading-tight">{c.nombre.slice(0, 32)}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{c.nit}</p>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">{c.casos} casos</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">TMS Sin COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', okTmss ? 'text-success' : 'text-danger')}>
+                      {c.tmss !== null ? formatHMS(c.tmss) : '—'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">SN1 Sin COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', okSn1s ? 'text-success' : 'text-danger')}>{sn1sPct}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">HDP / Esc</p>
+                    <p className="font-mono text-xs text-muted-foreground">{c.sn1s_hdp} / {c.sn1s_esc}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">TMS Con COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.tms ?? 0) <= metaTms ? 'text-success' : 'text-danger')}>
+                      {c.tms !== null ? formatHMS(c.tms) : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         {/* Footer slide 2 */}
