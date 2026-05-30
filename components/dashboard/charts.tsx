@@ -108,12 +108,20 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
       if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
     })
 
+    // Verificar si serieDia ya trae SN1 diario (nuevo formato del GAS)
+    const hasSN1enSerie = serieDia.some(d => (d as any).sn1_n > 0)
     const useBD = records.length > 0
     const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
 
     return serieDia.map(d => {
       const f = d.fecha.slice(0, 10)
-      if (useBD && byFecha[f]) {
+      const ds = d as any
+      if (hasSN1enSerie) {
+        acc.tms_n  += d.casos; acc.tms_s  += d.tms  * d.casos
+        acc.tmss_n += d.casos; acc.tmss_s += d.tmss * d.casos
+        acc.sn1_n  += ds.sn1_n  || 0; acc.sn1_hdp  += ds.sn1_hdp  || 0
+        acc.sn1s_n += ds.sn1s_n || 0; acc.sn1s_hdp += ds.sn1s_hdp || 0
+      } else if (useBD && byFecha[f]) {
         const b = byFecha[f]
         acc.tms_s  += b.tms_s;  acc.tms_n  += b.tms_n
         acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
@@ -247,7 +255,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                 <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showTmsCC && <Area type="monotone" dataKey="tmsCC" name="Con COFO" stroke="#60a5fa" fill="url(#gTmsCC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2}  dot={false} activeDot={{ r: 4 }} />}
+                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -280,7 +288,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                 <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showSn1CC && <Area type="monotone" dataKey="sn1CC" name="Con COFO" stroke="#60a5fa" fill="url(#gSn1CC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2}  dot={false} activeDot={{ r: 4 }} />}
+                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
