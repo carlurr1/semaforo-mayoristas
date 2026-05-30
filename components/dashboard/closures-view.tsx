@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { RefreshCw, FolderOpen, Lock, Check, X, Download } from 'lucide-react'
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell
+} from 'recharts'
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, mesLabel } from '@/lib/utils'
 import type { CierreResumen } from '@/lib/gas'
 
@@ -12,6 +16,175 @@ const META_TMS = 11.5
 interface ClosuresViewProps {
   mes: string
   onGasCall: (action: string, params?: Record<string,string>) => Promise<any>
+}
+
+// Componente de detalle del cierre con gráficas
+function CierreDetalle({ selected }: { selected: CierreResumen }) {
+  const r = selected.resumen
+  const serieDia = (r as any).serieDia || []
+
+  // Calcular acumulado desde serieDia
+  const acum = (() => {
+    if (!serieDia.length) return []
+    let ts=0,tn=0,tss=0,tns=0
+    return serieDia.map((d: any) => {
+      tn+=d.casos; ts+=d.tms*d.casos
+      tns+=d.casos; tss+=d.tmss*d.casos
+      return {
+        fecha: d.fecha.slice(5),
+        tmsCC: tn>0?ts/tn:null,
+        tmsSC: tns>0?tss/tns:null,
+        sn1CC: r.sn1*100,
+        sn1SC: r.sn1s*100,
+      }
+    })
+  })()
+
+  const clientes: any[] = (r as any).clientes || []
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
+    >
+      {/* Header */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="font-mono text-2xl font-bold text-primary">
+              Cierre: {mesLabel(selected.mesAnio)}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Capturado: {selected.fechaCaptura}
+            </p>
+          </div>
+          <span className="font-mono text-sm text-muted-foreground border border-border rounded-lg px-3 py-1.5">
+            {formatN(r.totalMayoristas)} casos
+          </span>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'SN1 Con COFO', value: formatPct(r.sn1),  sub: `${r.sn1_hdp} HDP / ${r.sn1_n} casos`,   status: sn1Status(r.sn1, META_SN1) },
+            { label: 'SN1 Sin COFO', value: formatPct(r.sn1s), sub: `${r.sn1s_hdp} HDP / ${r.sn1s_n} casos`,  status: sn1Status(r.sn1s, META_SN1) },
+            { label: 'TMS Con COFO', value: formatHMS(r.tms),  sub: `${r.tms_n} casos · Meta ${META_TMS}h`,   status: tmsStatus(r.tms, META_TMS) },
+            { label: 'TMS Sin COFO', value: formatHMS(r.tmss), sub: `${r.tmss_n} casos · Meta ${META_TMS}h`,  status: tmsStatus(r.tmss, META_TMS) },
+          ].map((k, i) => {
+            const borderC = k.status === 'success' ? 'border-l-success' : k.status === 'danger' ? 'border-l-danger' : 'border-l-warning'
+            const valC    = k.status === 'success' ? 'text-success'     : k.status === 'danger' ? 'text-danger'     : 'text-warning'
+            return (
+              <div key={i} className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderC)}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.label}</p>
+                <p className={cn('font-mono text-xl font-bold mb-1', valC)}>{k.value}</p>
+                <p className="text-[10px] text-muted-foreground">{k.sub}</p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Gráficas acumuladas */}
+      {acum.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: 'TMS acumulado (datos congelados)', keyCC: 'tmsCC', keySC: 'tmsSC', meta: META_TMS, fmt: (v: number) => `${v.toFixed(1)}h`, yFmt: (v: number) => `${v}h`, domain: undefined as any },
+            { title: 'SN1 acumulado (%)',                keyCC: 'sn1CC', keySC: 'sn1SC', meta: META_SN1*100, fmt: (v: number) => `${v.toFixed(1)}%`, yFmt: (v: number) => `${v}%`, domain: [0, 110] },
+          ].map(({ title, keyCC, keySC, meta, fmt, yFmt, domain }) => (
+            <div key={title} className="rounded-xl border border-border bg-card p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
+              <div className="h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={acum} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id={`cg1${keyCC}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id={`cg2${keySC}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#34d399" stopOpacity={0.15}/>
+                        <stop offset="95%" stopColor="#34d399" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                    <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} interval="preserveStartEnd" />
+                    <YAxis domain={domain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={yFmt} width={32} />
+                    <Tooltip
+                      contentStyle={{ background: '#111113', border: '1px solid rgba(255,255,255,.1)', borderRadius: 8, fontSize: 11 }}
+                      formatter={(v: any) => [fmt(v)]}
+                    />
+                    <ReferenceLine y={meta} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
+                    <Area type="monotone" dataKey={keyCC} name="Con COFO" stroke="#60a5fa" fill={`url(#cg1${keyCC})`} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+                    <Area type="monotone" dataKey={keySC} name="Sin COFO" stroke="#34d399" fill={`url(#cg2${keySC})`} strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabla clientes del cierre */}
+      {clientes.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              TMS y SN1 por cliente — cierre oficial
+            </p>
+          </div>
+          {/* Desktop */}
+          <div className="hidden md:block overflow-x-auto max-h-[400px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-muted">
+                <tr className="border-b border-border">
+                  {['Cliente','Casos','TMS c/COFO','SN1 c/COFO','TMS s/COFO','SN1 s/COFO'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {clientes.map((c: any, i: number) => (
+                  <tr key={i} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-foreground">{c.nombre}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground">{c.nit}</p>
+                    </td>
+                    <td className="px-4 py-3 text-center font-mono text-muted-foreground">{c.casos}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('font-mono font-bold text-xs', (c.tms||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tms)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('font-mono font-bold text-xs', (c.sn1||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1?formatPct(c.sn1):'—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('font-mono font-bold text-xs', (c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={cn('font-mono font-bold text-xs', (c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Móvil */}
+          <div className="md:hidden divide-y divide-border/50">
+            {clientes.slice(0, 20).map((c: any, i: number) => (
+              <div key={i} className="p-4">
+                <p className="text-sm font-semibold text-foreground">{c.nombre}</p>
+                <p className="text-[10px] font-mono text-muted-foreground mb-2">{c.nit} · {c.casos} casos</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><p className="text-[9px] text-muted-foreground">TMS s/COFO</p><p className={cn('font-mono text-sm font-bold',(c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</p></div>
+                  <div><p className="text-[9px] text-muted-foreground">SN1 s/COFO</p><p className={cn('font-mono text-sm font-bold',(c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</p></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
 }
 
 export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
@@ -227,43 +400,7 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
 
       {/* Detalle del cierre seleccionado */}
       {selected && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-primary/20 bg-primary/5 p-6"
-        >
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="font-mono text-2xl font-bold text-primary">
-                Cierre: {mesLabel(selected.mesAnio)}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Capturado: {selected.fechaCaptura}
-              </p>
-            </div>
-            <span className="font-mono text-sm text-muted-foreground border border-border rounded-lg px-3 py-1.5">
-              {formatN(selected.resumen.totalMayoristas)} casos
-            </span>
-          </div>
-
-          {/* KPIs del cierre */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: 'SN1 Con COFO', value: formatPct(selected.resumen.sn1), status: sn1Status(selected.resumen.sn1, META_SN1) },
-              { label: 'SN1 Sin COFO', value: formatPct(selected.resumen.sn1s), status: sn1Status(selected.resumen.sn1s, META_SN1) },
-              { label: 'TMS Con COFO', value: formatHMS(selected.resumen.tms), status: tmsStatus(selected.resumen.tms, META_TMS) },
-              { label: 'TMS Sin COFO', value: formatHMS(selected.resumen.tmss), status: tmsStatus(selected.resumen.tmss, META_TMS) },
-            ].map((k, i) => (
-              <div key={i} className="rounded-lg border border-border bg-card p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.label}</p>
-                <p className={cn('font-mono text-xl font-bold',
-                  k.status === 'success' ? 'text-success' :
-                  k.status === 'danger'  ? 'text-danger'  : 'text-warning'
-                )}>{k.value}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
+        <CierreDetalle selected={selected} />
       )}
     </div>
   )
