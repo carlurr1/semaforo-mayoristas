@@ -2,147 +2,269 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Search, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react'
+import { Search, Filter, ChevronDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus } from '@/lib/utils'
-import type { ClienteData } from '@/lib/gas'
+import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { cn, formatHMS } from '@/lib/utils'
+import type { BDRecord } from '@/lib/gas'
 
-interface ClientTableProps {
-  clientes: ClienteData[]
-  metaSn1: number
-  metaTms: number
+interface DatabaseTableProps {
+  records: BDRecord[]
 }
 
-type SortKey = 'nombre' | 'casos' | 'tms' | 'sn1' | 'tmss' | 'sn1s'
-type SortDir  = 'asc' | 'desc'
+function StatusDot({ ok }: { ok: boolean }) {
+  return <span className={cn('inline-flex h-1.5 w-1.5 rounded-full', ok ? 'bg-success' : 'bg-danger')} />
+}
 
-function Badge({ value, type, meta }: { value: number | null; type: 'tms' | 'sn1'; meta: number }) {
-  if (value === null) return <span className="text-muted-foreground font-mono text-xs">—</span>
-  const s = type === 'tms' ? tmsStatus(value, meta) : sn1Status(value, meta)
-  const colors = {
-    success: 'bg-success/15 text-success border-success/30',
-    warning: 'bg-warning/15 text-warning border-warning/30',
-    danger:  'bg-danger/15  text-danger  border-danger/30',
-    neutral: 'bg-muted      text-muted-foreground border-border',
-  }[s]
+// Tarjeta individual para móvil
+function RecordCard({ r }: { r: BDRecord }) {
   return (
-    <span className={cn('inline-flex min-w-[76px] items-center justify-center rounded-full border px-2.5 py-0.5 text-xs font-mono font-semibold', colors)}>
-      {type === 'tms' ? formatHMS(value) : formatPct(value)}
-    </span>
+    <div className="rounded-xl border border-border bg-card p-4 space-y-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-foreground leading-tight">{r.cliente}</p>
+          <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{r.nit}</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className={cn('font-mono text-sm font-bold', r.tms > 11.5 ? 'text-danger' : 'text-success')}>
+            {formatHMS(r.tms)}
+          </p>
+          <p className="text-[10px] text-muted-foreground">{r.cierre?.slice(5) || '—'}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <span className="inline-flex items-center rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-mono text-primary">
+          {r.caso || '—'}
+        </span>
+        {r.servicio && (
+          <span className="inline-flex items-center rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+            {r.servicio}
+          </span>
+        )}
+        {r.hdp !== undefined && (
+          <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+            r.hdp ? 'bg-success/10 border-success/30 text-success' : 'bg-danger/10 border-danger/30 text-danger')}>
+            {r.hdp ? 'HDP' : 'ESC'}
+          </span>
+        )}
+        {r.masivo && (
+          <span className="inline-flex items-center rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[10px] text-warning">
+            Masivo
+          </span>
+        )}
+        {r.cofoSN1 && (
+          <span className="inline-flex items-center rounded-full bg-warning/10 border border-warning/30 px-2 py-0.5 text-[10px] text-warning">
+            COFO
+          </span>
+        )}
+      </div>
+      {r.areaSol && (
+        <p className="text-[10px] text-muted-foreground">
+          <span className="font-semibold">Área:</span> {r.areaSol}
+          {r.n4 && <> · <span className="font-semibold">N4:</span> {r.n4.slice(0, 30)}</>}
+        </p>
+      )}
+    </div>
   )
 }
 
-export function ClientTable({ clientes, metaSn1, metaTms }: ClientTableProps) {
-  const [search,  setSearch]  = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('casos')
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+export function DatabaseTable({ records }: DatabaseTableProps) {
+  const [search,        setSearch]        = useState('')
+  const [serviceFilter, setServiceFilter] = useState<string | null>(null)
+  const [massiveFilter, setMassiveFilter] = useState<boolean | null>(null)
+  const [cofoFilter,    setCofoFilter]    = useState<boolean | null>(null)
+  const [hdpFilter,     setHdpFilter]     = useState<boolean | null>(null)
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(key); setSortDir('desc') }
-  }
+  const filtered = records.filter(r => {
+    if (search) {
+      const q = search.toLowerCase()
+      if (!(r.caso + r.cliente + r.nit + (r.propietario||'') + (r.n4||'') + (r.n5||'')).toLowerCase().includes(q)) return false
+    }
+    if (serviceFilter && r.servicio !== serviceFilter) return false
+    if (massiveFilter !== null && !!r.masivo !== massiveFilter) return false
+    if (cofoFilter    !== null && r.cofoSN1 !== cofoFilter) return false
+    if (hdpFilter     !== null && r.hdp     !== hdpFilter) return false
+    return true
+  })
 
-  const filtered = clientes
-    .filter(c => !search || c.nombre.toLowerCase().includes(search.toLowerCase()) || c.nit.includes(search))
-    .sort((a, b) => {
-      const dir = sortDir === 'asc' ? 1 : -1
-      const va = a[sortKey] as any
-      const vb = b[sortKey] as any
-      if (va === null && vb === null) return 0
-      if (va === null) return 1
-      if (vb === null) return -1
-      if (typeof va === 'string') return va.localeCompare(vb) * dir
-      return (va - vb) * dir
-    })
-
-  const cols: { key: SortKey; label: string; center?: boolean }[] = [
-    { key: 'nombre', label: 'Cliente' },
-    { key: 'casos',  label: 'Casos',      center: true },
-    { key: 'tms',    label: 'TMS c/COFO', center: true },
-    { key: 'sn1',    label: 'SN1 c/COFO', center: true },
-    { key: 'tmss',   label: 'TMS s/COFO', center: true },
-    { key: 'sn1s',   label: 'SN1 s/COFO', center: true },
-  ]
+  const reset = () => { setSearch(''); setServiceFilter(null); setMassiveFilter(null); setCofoFilter(null); setHdpFilter(null) }
+  const hasFilters = !!(search || serviceFilter || massiveFilter !== null || cofoFilter !== null || hdpFilter !== null)
+  const MAX = 300
+  const shown = filtered.slice(0, MAX)
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="rounded-xl border border-border bg-card"
-    >
-      <div className="flex items-center gap-4 border-b border-border p-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar cliente o NIT..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 bg-background"
-          />
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-3 py-4">
+
+      {/* Toolbar */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar caso, cliente, NIT..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 bg-background"
+            />
+          </div>
+          <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+            {filtered.length}/{records.length}
+          </span>
         </div>
-        <span className="text-xs text-muted-foreground font-mono">
-          {filtered.length} de {clientes.length} clientes
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                <Filter className="h-3 w-3" />
+                {serviceFilter || 'Servicio'}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setServiceFilter(null)}>Todos</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setServiceFilter('Avanzado')}>Avanzado</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setServiceFilter('Basico')}>Basico</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                {massiveFilter === null ? 'Masivo' : massiveFilter ? 'Con masivo' : 'Sin masivo'}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setMassiveFilter(null)}>Todos</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMassiveFilter(true)}>Con masivo</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMassiveFilter(false)}>Sin masivo</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                {cofoFilter === null ? 'COFO' : cofoFilter ? 'Con COFO' : 'Sin COFO'}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setCofoFilter(null)}>Todos</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCofoFilter(true)}>Con COFO</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCofoFilter(false)}>Sin COFO</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
+                {hdpFilter === null ? 'HDP/Esc' : hdpFilter ? 'HDP' : 'Escalado'}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setHdpFilter(null)}>Todos</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHdpFilter(true)}>HDP</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHdpFilter(false)}>Escalado</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={reset} className="text-xs h-8">
+              Limpiar
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-        <table className="w-full">
-          <thead className="sticky top-0 z-10">
-            <tr className="border-b border-border bg-muted/80 backdrop-blur-sm">
-              {cols.map(col => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className={cn(
-                    'cursor-pointer select-none whitespace-nowrap px-4 py-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground',
-                    col.center ? 'text-center' : 'text-left'
-                  )}
-                >
-                  <div className={cn('flex items-center gap-1', col.center && 'justify-center')}>
-                    {col.label}
-                    {sortKey === col.key
-                      ? sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
-                      : <ArrowUpDown className="h-3 w-3 opacity-40" />}
-                  </div>
-                </th>
+      {/* Vista móvil — tarjetas */}
+      <div className="md:hidden space-y-2">
+        {shown.map((r, i) => <RecordCard key={r.caso || i} r={r} />)}
+        {filtered.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground text-sm">Sin resultados</div>
+        )}
+        {filtered.length > MAX && (
+          <p className="text-center text-xs text-muted-foreground py-3">
+            Mostrando {MAX} de {filtered.length} — filtra para ver más
+          </p>
+        )}
+      </div>
+
+      {/* Vista desktop — tabla */}
+      <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+        <div className="max-h-[600px] overflow-auto">
+          <table className="w-full">
+            <thead className="sticky top-0 z-10">
+              <tr className="border-b border-border bg-muted">
+                {['Caso SF','Id Legado','Cliente','Servicio','Cierre','TMS','Área Sol.','N4','Masivo','COFO','SN1','Propietario'].map(h => (
+                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <tr key={r.caso || i} className="border-b border-border/50 transition-colors hover:bg-muted/30">
+                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-primary">{r.caso || '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-muted-foreground">{r.idLegado || '—'}</td>
+                  <td className="px-4 py-3 max-w-[180px]">
+                    <p className="text-sm font-medium truncate">{r.cliente}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground">{r.nit}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                      r.servicio === 'Avanzado' ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
+                      {r.servicio}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-muted-foreground">{r.cierre?.slice(5) || '—'}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <span className={cn('text-xs font-mono font-bold', r.tms > 11.5 ? 'text-danger' : 'text-success')}>
+                      {formatHMS(r.tms)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{r.areaSol || '—'}</td>
+                  <td className="px-4 py-3 max-w-[120px]">
+                    <p className="text-[10px] truncate text-muted-foreground" title={r.n4}>{r.n4 || '—'}</p>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                      r.masivo ? 'bg-warning/20 text-warning' : 'bg-muted text-muted-foreground')}>
+                      {r.masivo ? '✓' : '−'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
+                      r.cofoSN1 ? 'bg-danger/20 text-danger' : 'bg-muted text-muted-foreground')}>
+                      {r.cofoSN1 ? '✓' : '−'}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-center">
+                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
+                      r.hdp ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')}>
+                      {r.hdp ? 'H' : 'E'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-[10px] text-muted-foreground max-w-[120px] truncate">{r.propietario || '—'}</td>
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c, i) => (
-              <motion.tr
-                key={c.nit || i}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: i * 0.01 }}
-                className="border-b border-border/50 transition-colors hover:bg-muted/30"
-              >
-                <td className="px-4 py-3">
-                  <p className="text-sm font-medium text-foreground">{c.nombre}</p>
-                  <p className="text-[10px] font-mono text-muted-foreground">{c.nit}</p>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className="inline-flex items-center justify-center rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-mono font-semibold text-primary">
-                    {formatN(c.casos)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-center"><Badge value={c.tms}  type="tms" meta={metaTms} /></td>
-                <td className="px-4 py-3 text-center"><Badge value={c.sn1}  type="sn1" meta={metaSn1} /></td>
-                <td className="px-4 py-3 text-center"><Badge value={c.tmss} type="tms" meta={metaTms} /></td>
-                <td className="px-4 py-3 text-center"><Badge value={c.sn1s} type="sn1" meta={metaSn1} /></td>
-              </motion.tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <Search className="h-10 w-10 mb-3 opacity-30" />
-          <p className="text-sm">No se encontraron clientes</p>
+            </tbody>
+          </table>
         </div>
-      )}
+        {filtered.length > MAX && (
+          <p className="text-center py-3 text-xs text-muted-foreground border-t border-border">
+            Mostrando {MAX} de {filtered.length} casos filtrados
+          </p>
+        )}
+        {filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Search className="h-10 w-10 mb-3 opacity-30" />
+            <p className="text-sm">Sin resultados</p>
+          </div>
+        )}
+      </div>
     </motion.div>
   )
 }
