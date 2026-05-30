@@ -233,11 +233,11 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
               <AreaChart data={acumulado} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gTmsCC" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="hsl(217 91% 65%)" stopOpacity={0.18}/>
+                    <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.22}/>
                     <stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="gTmsSC" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/>
+                    <stop offset="5%"  stopColor="#34d399" stopOpacity={0.18}/>
                     <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -245,9 +245,9 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                <ReferenceLine y={metaTms} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
-                {showTmsCC && <Area type="monotone" dataKey="tmsCC" name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#gTmsCC)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
-                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#gTmsSC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
+                {showTmsCC && <Area type="monotone" dataKey="tmsCC" name="Con COFO" stroke="#60a5fa" fill="url(#gTmsCC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
+                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -266,11 +266,11 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
               <AreaChart data={acumulado} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="gSn1CC" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="hsl(217 91% 65%)" stopOpacity={0.18}/>
+                    <stop offset="5%"  stopColor="#60a5fa" stopOpacity={0.22}/>
                     <stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="gSn1SC" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/>
+                    <stop offset="5%"  stopColor="#34d399" stopOpacity={0.18}/>
                     <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -278,9 +278,9 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} interval="preserveStartEnd" />
                 <YAxis domain={[0, 110]} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
-                <ReferenceLine y={metaSn1 * 100} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
-                {showSn1CC && <Area type="monotone" dataKey="sn1CC" name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#gSn1CC)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
-                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#gSn1SC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
+                {showSn1CC && <Area type="monotone" dataKey="sn1CC" name="Con COFO" stroke="#60a5fa" fill="url(#gSn1CC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
+                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -338,10 +338,10 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                 <YAxis tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                <ReferenceLine y={metaTms} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
-                <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
+                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} />
+                <Line type="monotone" dataKey="cc" name="Con COFO" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -355,10 +355,10 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                 <YAxis domain={[0, 105]} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
-                <ReferenceLine y={metaSn1 * 100} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
-                <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
+                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} />
+                <Line type="monotone" dataKey="cc" name="Con COFO" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
