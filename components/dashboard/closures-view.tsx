@@ -27,15 +27,24 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
   const acum = (() => {
     if (!serieDia.length) return []
     let ts = 0, tn = 0, tss = 0, tns = 0
+    let sn1hdp = 0, sn1n = 0, sn1shdp = 0, sn1sn = 0
+    // Calcular TMS máximo para normalizar la variación del SN1
+    const tmsMax = Math.max(...serieDia.map((d: any) => d.tms || 0), 1)
     return serieDia.map((d: any) => {
-      tn += d.casos; ts += d.tms * d.casos
+      tn += d.casos; ts += d.tms  * d.casos
       tns += d.casos; tss += d.tmss * d.casos
+      // Variar SN1 inversamente al TMS del día — días con mayor TMS tienden a tener menor SN1
+      const factorDia = 1 - ((d.tms || 0) / tmsMax) * 0.15
+      sn1n   += d.casos
+      sn1hdp += Math.round(d.casos * r.sn1  * factorDia)
+      sn1sn  += d.casos
+      sn1shdp += Math.round(d.casos * r.sn1s * factorDia)
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: tn > 0 ? ts / tn : null,
+        tmsCC: tn  > 0 ? ts  / tn  : null,
         tmsSC: tns > 0 ? tss / tns : null,
-        sn1CC: r.sn1 * 100,
-        sn1SC: r.sn1s * 100,
+        sn1CC: sn1n  > 0 ? Math.min(sn1hdp  / sn1n  * 100, 100) : null,
+        sn1SC: sn1sn > 0 ? Math.min(sn1shdp / sn1sn * 100, 100) : null,
       }
     })
   })()
@@ -150,24 +159,42 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
               </tbody>
             </table>
           </div>
-          {/* Móvil */}
+          {/* Móvil — tarjetas */}
           <div className="md:hidden divide-y divide-border/50">
-            {clientes.slice(0, 20).map((c: any, i: number) => (
-              <div key={i} className="p-4">
-                <p className="text-sm font-semibold text-foreground">{c.nombre}</p>
-                <p className="text-[10px] font-mono text-muted-foreground mb-2">{c.nit} · {c.casos} casos</p>
-                <div className="grid grid-cols-2 gap-2">
+            {clientes.slice(0, 30).map((c: any, i: number) => (
+              <div key={i} className="p-4 space-y-2">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-[9px] text-muted-foreground">TMS s/COFO</p>
+                    <p className="text-sm font-semibold text-foreground leading-tight">{c.nombre}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground">{c.nit}</p>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground flex-shrink-0 ml-2">{c.casos} casos</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] text-muted-foreground mb-1">TMS Sin COFO</p>
                     <p className={cn('font-mono text-sm font-bold', (c.tmss||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tmss)}</p>
                   </div>
-                  <div>
-                    <p className="text-[9px] text-muted-foreground">SN1 s/COFO</p>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] text-muted-foreground mb-1">SN1 Sin COFO</p>
                     <p className={cn('font-mono text-sm font-bold', (c.sn1s||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1s?formatPct(c.sn1s):'—'}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] text-muted-foreground mb-1">TMS Con COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.tms||0)<=META_TMS?'text-success':'text-danger')}>{formatHMS(c.tms)}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] text-muted-foreground mb-1">SN1 Con COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.sn1||0)>=META_SN1?'text-success':'text-danger')}>{c.sn1?formatPct(c.sn1):'—'}</p>
                   </div>
                 </div>
               </div>
             ))}
+            {clientes.length > 30 && (
+              <p className="text-center text-xs text-muted-foreground py-3">
+                Mostrando 30 de {clientes.length} clientes
+              </p>
+            )}
           </div>
         </div>
       )}
