@@ -268,6 +268,7 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
   return (
     <div className="space-y-5 py-4">
 
+
       {/* Panels de gestión */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
