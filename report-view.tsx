@@ -23,17 +23,53 @@ const HIST_BASE = [
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
 ]
 
-// Calcular acumulado diario desde serieDia
-function calcAcumulado(serieDia: SerieDia[]) {
-  if (!serieDia?.length) return []
-  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0
+// Calcular acumulado diario desde bdRecords (igual que el original)
+function calcAcumulado(data: MetricasData) {
+  const records = data.bdRecords || []
+  const serieDia = data.serieDia || []
+  if (!serieDia.length) return []
+
+  type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
+  const byFecha: Record<string, DayAcc> = {}
+
+  records.forEach(r => {
+    const f = r.cierre?.slice(0, 10) || ''
+    if (!f) return
+    if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+    const d = byFecha[f]
+    const masRaw = (r.masivo || '').toUpperCase().trim()
+    const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
+    const mTMS = masRaw === 'CORTE DE CABLE'
+    if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
+    if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
+    if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
+    if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
+  })
+
+  const useBD = records.length > 0
+  const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+
   return serieDia.map(d => {
-    tms_n += d.casos; tms_s += d.tms * d.casos
-    tmss_n += d.casos; tmss_s += d.tmss * d.casos
+    const f = d.fecha.slice(0, 10)
+    if (useBD && byFecha[f]) {
+      const b = byFecha[f]
+      acc.tms_s  += b.tms_s;  acc.tms_n  += b.tms_n
+      acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
+      acc.sn1_n  += b.sn1_n;  acc.sn1_hdp  += b.sn1_hdp
+      acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
+    } else {
+      acc.tms_n  += d.casos; acc.tms_s  += d.tms  * d.casos
+      acc.tmss_n += d.casos; acc.tmss_s += d.tmss * d.casos
+      acc.sn1_n  += d.casos; acc.sn1s_n += d.casos
+      acc.sn1_hdp  = Math.round(acc.sn1_n  * data.sn1)
+      acc.sn1s_hdp = Math.round(acc.sn1s_n * data.sn1s)
+    }
     return {
       fecha: d.fecha.slice(5),
-      tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
-      tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
+      tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+      tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+      sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+      sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
     }
   })
 }
@@ -161,7 +197,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   }
 
   // Acumulado diario
-  const acum = calcAcumulado(data.serieDia || [])
+  const acum = calcAcumulado(data)
 
   // Top clientes
   const clientes = data.clientes || []
@@ -345,7 +381,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum.map(d => ({ ...d, sn1: sn1 * 100, sn1s: sn1s * 100 }))} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
