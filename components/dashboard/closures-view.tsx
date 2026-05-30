@@ -19,9 +19,9 @@ interface ClosuresViewProps {
 }
 
 // Componente de detalle del cierre con gráficas
-function CierreDetalle({ selected }: { selected: CierreResumen }) {
+function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle: any | null }) {
   const r = selected.resumen
-  const serieDia = (r as any).serieDia || []
+  const serieDia = detalle?.serieDia || (r as any).serieDia || []
 
   // Calcular acumulado desde serieDia
   const acum = (() => {
@@ -40,7 +40,7 @@ function CierreDetalle({ selected }: { selected: CierreResumen }) {
     })
   })()
 
-  const clientes: any[] = (r as any).clientes || []
+  const clientes: any[] = detalle?.clientes || (r as any).clientes || []
 
   return (
     <motion.div
@@ -189,12 +189,14 @@ function CierreDetalle({ selected }: { selected: CierreResumen }) {
 
 export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
   const [cierres,     setCierres]     = useState<CierreResumen[]>([])
-  const [selected,    setSelected]    = useState<CierreResumen | null>(null)
-  const [loading,     setLoading]     = useState(true)
-  const [loadingMes,  setLoadingMes]  = useState('')
-  const [status,      setStatus]      = useState<{ msg: string; ok?: boolean } | null>(null)
-  const [importMes,   setImportMes]   = useState(mes)
-  const [closeMes,    setCloseMes]    = useState(mes)
+  const [selected,     setSelected]    = useState<CierreResumen | null>(null)
+  const [detalle,      setDetalle]     = useState<any | null>(null)
+  const [loadingDet,   setLoadingDet]  = useState(false)
+  const [loading,      setLoading]     = useState(true)
+  const [loadingMes,   setLoadingMes]  = useState('')
+  const [status,       setStatus]      = useState<{ msg: string; ok?: boolean } | null>(null)
+  const [importMes,    setImportMes]   = useState(mes)
+  const [closeMes,     setCloseMes]    = useState(mes)
 
   const cargarLista = async () => {
     setLoading(true)
@@ -203,6 +205,25 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
       if (res.ok) setCierres(res.lista || [])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const seleccionarCierre = async (c: CierreResumen) => {
+    if (selected?.mesAnio === c.mesAnio) {
+      setSelected(null)
+      setDetalle(null)
+      return
+    }
+    setSelected(c)
+    setDetalle(null)
+    setLoadingDet(true)
+    try {
+      const res = await onGasCall('cierre', { mes: c.mesAnio })
+      if (res.ok) setDetalle(res.data)
+    } catch (e) {
+      console.error('Error cargando cierre:', e)
+    } finally {
+      setLoadingDet(false)
     }
   }
 
@@ -354,7 +375,7 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
               return (
                 <motion.button
                   key={c.mesAnio}
-                  onClick={() => setSelected(selected?.mesAnio === c.mesAnio ? null : c)}
+                  onClick={() => seleccionarCierre(c)}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.97 }}
                   style={{ minWidth: '160px', scrollSnapAlign: 'start' }}
@@ -400,7 +421,15 @@ export function ClosuresView({ mes, onGasCall }: ClosuresViewProps) {
 
       {/* Detalle del cierre seleccionado */}
       {selected && (
-        <CierreDetalle selected={selected} />
+        {loadingDet ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <RefreshCw className="h-5 w-5 animate-spin mr-2" /> Cargando detalle...
+          </div>
+        ) : detalle ? (
+          <CierreDetalle selected={selected} detalle={detalle} />
+        ) : (
+          <CierreDetalle selected={selected} detalle={null} />
+        )}
       )}
     </div>
   )
