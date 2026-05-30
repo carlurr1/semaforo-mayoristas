@@ -1,200 +1,561 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Filter, ChevronDown } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { cn, formatHMS } from '@/lib/utils'
-import type { BDRecord } from '@/lib/gas'
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  ReferenceLine, Legend, Cell
+} from 'recharts'
+import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel } from '@/lib/utils'
+import type { MetricasData, ClienteData, BDRecord, SerieDia } from '@/lib/gas'
 
-interface DatabaseTableProps {
-  records: BDRecord[]
+const META_SN1 = 0.70
+const META_TMS = 11.5
+
+// Histórico hardcodeado — igual al index.html original
+const HIST_BASE = [
+  { mes: 'Nov 25', tms_sc: 10.0156, tms_cc: 36.2942, sn1_sc: 0.757, sn1_cc: 0.52  },
+  { mes: 'Dic 25', tms_sc: 7.7375,  tms_cc: 36.3886, sn1_sc: 0.71,  sn1_cc: 0.465 },
+  { mes: 'Ene 26', tms_sc: 9.0875,  tms_cc: 28.1456, sn1_sc: 0.712, sn1_cc: 0.537 },
+  { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
+  { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
+  { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
+]
+
+// Calcular acumulado diario desde serieDia
+function calcAcumulado(serieDia: SerieDia[]) {
+  if (!serieDia?.length) return []
+  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0
+  return serieDia.map(d => {
+    tms_n += d.casos; tms_s += d.tms * d.casos
+    tmss_n += d.casos; tmss_s += d.tmss * d.casos
+    return {
+      fecha: d.fecha.slice(5),
+      tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
+      tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
+    }
+  })
 }
 
-export function DatabaseTable({ records }: DatabaseTableProps) {
-  const [search,        setSearch]        = useState('')
-  const [serviceFilter, setServiceFilter] = useState<string | null>(null)
-  const [massiveFilter, setMassiveFilter] = useState<boolean | null>(null)
-  const [cofoFilter,    setCofoFilter]    = useState<boolean | null>(null)
-  const [hdpFilter,     setHdpFilter]     = useState<boolean | null>(null)
+// Tooltip oscuro
+const DarkTooltip = ({ active, payload, label, formatter }: any) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-lg border border-border bg-card/95 backdrop-blur-sm p-3 shadow-xl text-xs">
+      <p className="font-semibold text-foreground mb-1">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.color }} className="font-medium">
+          {p.name}: {formatter ? formatter(p.value) : p.value}
+        </p>
+      ))}
+    </div>
+  )
+}
 
-  const filtered = records.filter(r => {
-    if (search) {
-      const q = search.toLowerCase()
-      if (!(r.caso + r.cliente + r.nit + r.propietario + r.n4 + r.n5).toLowerCase().includes(q)) return false
-    }
-    if (serviceFilter && r.servicio !== serviceFilter) return false
-    if (massiveFilter !== null && !!r.masivo !== massiveFilter) return false
-    if (cofoFilter    !== null && r.cofoSN1 !== cofoFilter) return false
-    if (hdpFilter     !== null && r.hdp     !== hdpFilter) return false
-    return true
+// Badge de estado
+function StatusBadge({ status }: { status: ReturnType<typeof sn1Status> }) {
+  const colors = {
+    success: 'bg-success/15 text-success border-success/30',
+    warning: 'bg-warning/15 text-warning border-warning/30',
+    danger:  'bg-danger/15 text-danger border-danger/30',
+    neutral: 'bg-primary/15 text-primary border-primary/30',
+  }
+  const dots = {
+    success: 'bg-success animate-pulse',
+    warning: 'bg-warning',
+    danger:  'bg-danger',
+    neutral: 'bg-primary',
+  }
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold', colors[status])}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', dots[status])} />
+      {statusLabel(status)}
+    </span>
+  )
+}
+
+// KPI Card del informe
+function InfKPICard({ label, value, sub, status }: {
+  label: string; value: string; sub: string; status: ReturnType<typeof sn1Status>
+}) {
+  const borderColors = {
+    success: 'border-l-success',
+    warning: 'border-l-warning',
+    danger:  'border-l-danger',
+    neutral: 'border-l-primary',
+  }
+  const valColors = {
+    success: 'text-success',
+    warning: 'text-warning',
+    danger:  'text-danger',
+    neutral: 'text-primary',
+  }
+  return (
+    <div className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderColors[status])}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{label}</p>
+      <p className={cn('font-mono text-2xl font-bold leading-none mb-1', valColors[status])}>{value}</p>
+      <p className="text-[10px] text-muted-foreground mb-3">{sub}</p>
+      <StatusBadge status={status} />
+    </div>
+  )
+}
+
+interface ReportViewProps {
+  data: MetricasData
+  mes: string
+  metaSn1: number
+  metaTms: number
+}
+
+export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
+  const slide1Ref = useRef<HTMLDivElement>(null)
+  const slide2Ref = useRef<HTMLDivElement>(null)
+  const [ajusteOpen, setAjusteOpen] = useState(false)
+  const [ajSn1Cc, setAjSn1Cc] = useState('')
+  const [ajSn1Sc, setAjSn1Sc] = useState('')
+  const [ajTmsCc, setAjTmsCc] = useState('')
+  const [ajTmsSc, setAjTmsSc] = useState('')
+  const [downloading, setDownloading] = useState(false)
+
+  // Datos con ajuste manual aplicado
+  const sn1  = ajSn1Cc ? parseFloat(ajSn1Cc) / 100 : data.sn1
+  const sn1s = ajSn1Sc ? parseFloat(ajSn1Sc) / 100 : data.sn1s
+  function parseHMS(s: string) {
+    if (!s) return null
+    const p = s.split(':')
+    if (p.length === 3) return parseInt(p[0]) + parseInt(p[1])/60 + parseFloat(p[2])/3600
+    return null
+  }
+  const tms  = parseHMS(ajTmsCc) ?? data.tms
+  const tmss = parseHMS(ajTmsSc) ?? data.tmss
+
+  const mLabel = mesLabel(mes)
+
+  // Histórico actualizado con mes actual
+  const hist = [...HIST_BASE]
+  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const [yy, mm] = mes.split('-')
+  const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
+  const histIdx = hist.findIndex(h => h.mes === mL)
+  if (histIdx >= 0) {
+    hist[histIdx] = { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
+  } else {
+    hist.push({ mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 })
+  }
+
+  // Promedios históricos
+  const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
+  const avgTmsCc = hist.reduce((s, h) => s + (h.tms_cc || 0), 0) / hist.length
+  const avgSn1Sc = hist.reduce((s, h) => s + (h.sn1_sc || 0), 0) / hist.length
+  const avgSn1Cc = hist.reduce((s, h) => s + (h.sn1_cc || 0), 0) / hist.length
+  const prev = hist.length >= 2 ? hist[hist.length - 2] : null
+
+  function delta(cur: number, prevV: number | undefined, higherBetter: boolean) {
+    if (!prev || !prevV) return null
+    const dv = cur - prevV
+    const pct = Math.abs(dv / prevV * 100).toFixed(1)
+    const up = dv > 0
+    const good = higherBetter ? up : !up
+    return { txt: `${up ? '↑' : '↓'} ${pct}%`, good }
+  }
+
+  // Acumulado diario
+  const acum = calcAcumulado(data.serieDia || [])
+
+  // Top clientes
+  const clientes = data.clientes || []
+  const top5best = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (a.tmss || 0) - (b.tmss || 0)).slice(0, 5)
+  const top5worst = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (b.tmss || 0) - (a.tmss || 0)).slice(0, 5)
+  const top10 = [...clientes].filter(c => c.casos > 0).sort((a, b) => b.casos - a.casos).slice(0, 10)
+
+  // Top causas imputabilidad y tipo falla
+  const records = data.bdRecords || []
+  const causaMap: Record<string, number> = {}
+  const fallaMap: Record<string, number> = {}
+  records.forEach(r => {
+    const ci = (r.causaImp || '').trim()
+    if (ci && ci !== '-') causaMap[ci] = (causaMap[ci] || 0) + 1
+    const n5 = (r.n5 || '').trim()
+    if (n5 && n5 !== '-') fallaMap[n5] = (fallaMap[n5] || 0) + 1
   })
+  const top3causas = Object.entries(causaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
+  const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  const reset = () => { setSearch(''); setServiceFilter(null); setMassiveFilter(null); setCofoFilter(null); setHdpFilter(null) }
-  const hasFilters = !!(search || serviceFilter || massiveFilter !== null || cofoFilter !== null || hdpFilter !== null)
+  // Descargar imagen (usando browser print como fallback)
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      window.print()
+    } finally {
+      setTimeout(() => setDownloading(false), 1000)
+    }
+  }
 
-  const MAX = 500
-  const shown = filtered.slice(0, MAX)
+  const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  const now = new Date().toLocaleString('es-CO')
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-4 py-4">
-
+    <div className="py-4 space-y-6">
       {/* Toolbar */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm font-semibold text-foreground mr-auto">
-            {filtered.length} de {records.length} casos
-          </span>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar caso, cliente, NIT..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-60 pl-9 bg-background"
-            />
-          </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Filter className="h-3.5 w-3.5" />
-                {serviceFilter || 'Servicio'}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setServiceFilter(null)}>Todos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setServiceFilter('Avanzado')}>Avanzado</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setServiceFilter('Basico')}>Basico</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                Masivo {massiveFilter !== null && <span className="rounded-full bg-primary/20 px-1.5 text-[10px] text-primary">{massiveFilter ? 'Sí' : 'No'}</span>}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setMassiveFilter(null)}>Todos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMassiveFilter(true)}>Con masivo</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setMassiveFilter(false)}>Sin masivo</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                COFO {cofoFilter !== null && <span className="rounded-full bg-primary/20 px-1.5 text-[10px] text-primary">{cofoFilter ? 'Sí' : 'No'}</span>}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setCofoFilter(null)}>Todos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCofoFilter(true)}>Con COFO</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCofoFilter(false)}>Sin COFO</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                {hdpFilter === null ? 'HDP/Esc' : hdpFilter ? 'HDP' : 'Escalado'}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => setHdpFilter(null)}>Todos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setHdpFilter(true)}>HDP</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setHdpFilter(false)}>Escalado</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {hasFilters && <Button variant="ghost" size="sm" onClick={reset}>Limpiar</Button>}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-foreground tracking-tight">Informe Semanal — Mayoristas {mLabel}</h2>
+          <p className="text-xs text-muted-foreground font-mono mt-1">{mes}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setAjusteOpen(!ajusteOpen)
+              if (!ajusteOpen) {
+                setAjSn1Cc((data.sn1 * 100).toFixed(1))
+                setAjSn1Sc((data.sn1s * 100).toFixed(1))
+                setAjTmsCc(formatHMS(data.tms))
+                setAjTmsSc(formatHMS(data.tmss))
+              }
+            }}
+            className="h-9 px-4 rounded-lg border border-border bg-accent text-muted-foreground text-sm font-semibold hover:text-foreground transition-colors"
+          >
+            ✏️ Ajuste manual
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            📷 {downloading ? 'Generando...' : 'Descargar imagen'}
+          </button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="max-h-[600px] overflow-auto">
-          <table className="w-full">
-            <thead className="sticky top-0 z-10">
-              <tr className="border-b border-border bg-muted">
-                {['Caso SF','Id Legado','Cliente','Servicio','Cierre','TMS','Área Sol.','N4','Masivo','COFO','SN1','Propietario'].map(h => (
-                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {h}
-                  </th>
+      {/* Panel ajuste manual */}
+      {ajusteOpen && (
+        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5">
+          <p className="text-xs font-bold text-warning mb-4">⚠️ Modo ajuste — estos valores se usan solo para el informe. El dashboard no cambia.</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'SN1 Con COFO (%)', val: ajSn1Cc, set: setAjSn1Cc, ph: '55.9' },
+              { label: 'SN1 Sin COFO (%)', val: ajSn1Sc, set: setAjSn1Sc, ph: '77.7' },
+              { label: 'TMS Con COFO (HH:MM:SS)', val: ajTmsCc, set: setAjTmsCc, ph: '28:18:08' },
+              { label: 'TMS Sin COFO (HH:MM:SS)', val: ajTmsSc, set: setAjTmsSc, ph: '09:45:04' },
+            ].map(f => (
+              <div key={f.label}>
+                <label className="text-[10px] font-semibold text-muted-foreground block mb-1">{f.label}</label>
+                <input
+                  type="text"
+                  value={f.val}
+                  onChange={e => f.set(e.target.value)}
+                  placeholder={f.ph}
+                  className="w-full h-9 rounded-lg border border-warning/30 bg-input px-3 font-mono text-sm text-foreground outline-none focus:border-warning"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={() => { setAjSn1Cc(''); setAjSn1Sc(''); setAjTmsCc(''); setAjTmsSc('') }}
+              className="h-8 px-3 rounded-lg border border-border bg-accent text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Restaurar datos reales
+            </button>
+            <span className="text-[10px] text-muted-foreground">TMS en HH:MM:SS · SN1 en porcentaje (ej: 57.7)</span>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SLIDE 1 ═══ */}
+      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6">
+
+        {/* Header slide 1 */}
+        <div className="flex items-center justify-between pb-5 border-b border-border">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-sm">ETB</div>
+            <div>
+              <p className="text-lg font-bold text-foreground tracking-tight">Semáforo Mayoristas</p>
+              <p className="text-xs text-muted-foreground font-mono">ETB E&G Soporte — Customer Operation Success</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-2xl font-bold text-primary tracking-tight">{mLabel}</p>
+            <p className="text-xs text-muted-foreground mt-1">Corte: {today}</p>
+          </div>
+        </div>
+
+        {/* 8 KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <InfKPICard label="SN1 Con COFO"    value={formatPct(sn1)}  sub={`${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`}   status={sn1Status(sn1, metaSn1)} />
+          <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
+          <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
+          <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
+          <InfKPICard label={`Prom TMS s/COFO (${hist.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
+          <InfKPICard label={`Prom TMS c/COFO (${hist.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${hist.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${hist.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
+        </div>
+
+        {/* Top 5 mejor / peor TMS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: 'Top 5 clientes — mejor TMS', data: top5best },
+            { title: 'Top 5 clientes — peor TMS',  data: top5worst },
+          ].map(({ title, data: d }) => (
+            <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
+              <div style={{ height: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={d.map(c => ({ name: c.nombre.length > 18 ? c.nombre.slice(0, 17) + '…' : c.nombre, tms: +(c.tmss ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
+                    <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
+                    <Bar dataKey="tms" radius={[0, 4, 4, 0]} barSize={14}>
+                      {d.map((c, i) => <Cell key={i} fill={(c.tmss ?? 0) <= metaTms ? 'hsl(142 71% 45% / 0.75)' : 'hsl(0 84% 60% / 0.7)'} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Evolución diaria TMS + SN1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">TMS acumulado — evolución del mes</p>
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
+                  <ReferenceLine y={metaTms} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg1)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
+            <div style={{ height: 160 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum.map(d => ({ ...d, sn1: sn1 * 100, sn1s: sn1s * 100 }))} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
+                  <ReferenceLine y={metaSn1 * 100} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="hsl(217 91% 65%)" fill="url(#rg3)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="hsl(142 71% 45%)" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Histórico 6 meses TMS + SN1 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: 'TMS mensual — tendencia', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
+            { title: 'SN1 mensual — tendencia',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
+          ].map(({ title, scKey, ccKey, meta, fmt, yDomain }) => {
+            const isSN1 = scKey === 'sn1_sc'
+            const chartData = hist.map(h => ({
+              mes: h.mes,
+              sc: isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
+              cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
+            }))
+            return (
+              <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
+                <div style={{ height: 150 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
+                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
+                      <Tooltip content={<DarkTooltip formatter={fmt} />} />
+                      <ReferenceLine y={meta} stroke="hsl(0 84% 60% / 0.4)" strokeDasharray="5 4" />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer slide 1 */}
+        <div className="flex justify-between items-center pt-4 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
+        </div>
+      </div>
+
+      {/* Separador */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-border" />
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Diapositiva 2 — Top 10 Clientes</p>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* ═══ SLIDE 2 ═══ */}
+      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5">
+
+        {/* Header slide 2 */}
+        <div className="flex items-center justify-between pb-4 border-b border-border">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-xs">ETB</div>
+            <div>
+              <p className="text-sm font-bold text-foreground tracking-tight">Top 10 Clientes Mayoristas</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Mes: {mLabel} · Corte: {today}</p>
+            </div>
+          </div>
+          <p className="font-mono text-xl font-bold text-primary tracking-tight">{mLabel}</p>
+        </div>
+
+        {/* Top 3 causas */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Causa Imputabilidad</p>
+          <div className="grid grid-cols-3 gap-3">
+            {top3causas.map(([causa, n], i) => {
+              const colors = ['border-l-primary', 'border-l-success', 'border-l-warning']
+              const txtColors = ['text-primary', 'text-success', 'text-warning']
+              const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
+              return (
+                <div key={causa} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">#{i + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3 leading-tight">{causa}</p>
+                  <p className={cn('font-mono text-2xl font-bold', txtColors[i])}>{n}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">casos · {pct}% del total</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Top 3 tipo falla */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Tipo de Falla (N5)</p>
+          <div className="grid grid-cols-3 gap-3">
+            {top3fallas.map(([falla, n], i) => {
+              const colors = ['border-l-[hsl(262_83%_58%)]', 'border-l-[hsl(199_89%_48%)]', 'border-l-[hsl(173_58%_39%)]']
+              const txtColors = ['text-[hsl(262_83%_70%)]', 'text-[hsl(199_89%_60%)]', 'text-[hsl(173_58%_55%)]']
+              const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
+              return (
+                <div key={falla} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">#{i + 1}</p>
+                  <p className="text-xs font-bold text-foreground mb-3 leading-tight">{falla}</p>
+                  <p className={cn('font-mono text-2xl font-bold', txtColors[i])}>{n}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">casos · {pct}% del total</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Tabla top 10 clientes — desktop */}
+        <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gradient-to-r from-blue-900 to-blue-700">
+                <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Cliente</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Casos</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center border-l-2 border-white/20" colSpan={4}>SIN COFO</th>
+                <th className="px-3 py-2.5 text-white font-bold text-center border-l-2 border-white/20" colSpan={4}>CON COFO</th>
+              </tr>
+              <tr className="bg-blue-800">
+                {['TMS', 'SN1%', 'HDP', 'Esc.', 'TMS', 'SN1%', 'HDP', 'Esc.'].map((h, i) => (
+                  <th key={i} className={cn('px-2 py-1.5 text-white/80 font-semibold text-center text-[10px]', i === 4 && 'border-l-2 border-white/20')}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {shown.map((r, i) => (
-                <motion.tr
-                  key={r.caso || i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.15, delay: i * 0.005 }}
-                  className="border-b border-border/50 transition-colors hover:bg-muted/30"
-                >
-                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-primary">{r.caso || '—'}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-muted-foreground">{r.idLegado || '—'}</td>
-                  <td className="px-4 py-3 max-w-[180px]">
-                    <p className="text-sm font-medium truncate">{r.cliente}</p>
-                    <p className="text-[10px] font-mono text-muted-foreground">{r.nit}</p>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      r.servicio === 'Avanzado' ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground')}>
-                      {r.servicio}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs font-mono text-muted-foreground">{r.cierre?.slice(5) || '—'}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right text-xs font-mono font-semibold">{formatHMS(r.tms)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{r.areaSol || '—'}</td>
-                  <td className="px-4 py-3 max-w-[120px]">
-                    <p className="text-[10px] truncate text-muted-foreground" title={r.n4}>{r.n4 || '—'}</p>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                      r.masivo ? 'bg-warning/20 text-warning' : 'bg-muted text-muted-foreground')}>
-                      {r.masivo ? '✓' : '−'}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                      r.cofoSN1 ? 'bg-danger/20 text-danger' : 'bg-muted text-muted-foreground')}>
-                      {r.cofoSN1 ? '✓' : '−'}
-                    </span>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-center">
-                    <span className={cn('inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px]',
-                      r.hdp ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')}>
-                      {r.hdp ? 'H' : 'E'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-[10px] text-muted-foreground max-w-[120px] truncate">{r.propietario || '—'}</td>
-                </motion.tr>
-              ))}
+              {top10.map((c, i) => {
+                const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
+                const sn1Pct  = c.sn1_n  > 0 ? (c.sn1_hdp  / c.sn1_n  * 100).toFixed(1) + '%' : '—'
+                const okTmss = (c.tmss ?? 0) <= metaTms
+                const okTms  = (c.tms  ?? 0) <= metaTms
+                const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+                const okSn1  = c.sn1_n  > 0 && c.sn1_hdp  / c.sn1_n  >= metaSn1
+                return (
+                  <tr key={c.nit || i} className={i % 2 === 0 ? 'bg-card' : 'bg-accent/20'}>
+                    <td className="px-3 py-2 font-semibold text-foreground text-center border-b border-border/50">{c.nombre.slice(0, 32)}</td>
+                    <td className="px-3 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.casos}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50 border-l border-border/30', okTmss ? 'text-success' : 'text-danger')}>{c.tmss !== null ? formatHMS(c.tmss) : '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50', okSn1s ? 'text-success' : 'text-danger')}>{sn1sPct}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1s_hdp ?? '—'}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1s_esc ?? '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50 border-l border-border/30', okTms ? 'text-success' : 'text-danger')}>{c.tms !== null ? formatHMS(c.tms) : '—'}</td>
+                    <td className={cn('px-2 py-2 text-center font-mono font-bold border-b border-border/50', okSn1 ? 'text-success' : 'text-danger')}>{sn1Pct}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1_hdp ?? '—'}</td>
+                    <td className="px-2 py-2 text-center font-mono text-muted-foreground border-b border-border/50">{c.sn1_esc ?? '—'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-        {filtered.length > MAX && (
-          <p className="text-center py-3 text-xs text-muted-foreground">
-            Mostrando {MAX} de {filtered.length} casos filtrados
-          </p>
-        )}
-        {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Search className="h-10 w-10 mb-3 opacity-30" />
-            <p className="text-sm">No se encontraron casos</p>
-          </div>
-        )}
+
+        {/* Top 10 móvil — tarjetas */}
+        <div className="md:hidden space-y-2">
+          {top10.map((c, i) => {
+            const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
+            const okTmss = (c.tmss ?? 0) <= metaTms
+            const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+            return (
+              <div key={c.nit || i} className="rounded-xl border border-border bg-card/50 p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-bold text-foreground leading-tight">{c.nombre.slice(0, 32)}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{c.nit}</p>
+                  </div>
+                  <span className="text-xs font-mono text-muted-foreground">{c.casos} casos</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">TMS Sin COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', okTmss ? 'text-success' : 'text-danger')}>
+                      {c.tmss !== null ? formatHMS(c.tmss) : '—'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">SN1 Sin COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', okSn1s ? 'text-success' : 'text-danger')}>{sn1sPct}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">HDP / Esc</p>
+                    <p className="font-mono text-xs text-muted-foreground">{c.sn1s_hdp} / {c.sn1s_esc}</p>
+                  </div>
+                  <div className="rounded-lg bg-accent/30 p-2.5">
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">TMS Con COFO</p>
+                    <p className={cn('font-mono text-sm font-bold', (c.tms ?? 0) <= metaTms ? 'text-success' : 'text-danger')}>
+                      {c.tms !== null ? formatHMS(c.tms) : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer slide 2 */}
+        <div className="flex justify-between items-center pt-4 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
+        </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
