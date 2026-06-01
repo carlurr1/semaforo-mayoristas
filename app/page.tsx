@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { RefreshCw, Download, Activity, Database, Calendar, Camera } from 'lucide-react'
+import { RefreshCw, Download, Activity, Database, Calendar, Camera, Sun, Moon } from 'lucide-react'
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel, mesActual } from '@/lib/utils'
 import type { MetricasData, CierreResumen } from '@/lib/gas'
 
@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [mes,        setMes]        = useState(mesActual)
   const [data,       setData]       = useState<MetricasData | null>(null)
   const [error,      setError]      = useState<string | null>(null)
+  const [theme,      setTheme]      = useState<'dark'|'light'>('dark')
   const [service,    setService]    = useState('')
   const [tipo,       setTipo]       = useState('')
   const [cliente,    setCliente]    = useState('')
@@ -84,6 +85,11 @@ export default function Dashboard() {
   }, [mes])
 
   useEffect(() => { cargar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    document.documentElement.classList.toggle('light', theme === 'light')
+  }, [theme])
 
   const handleLoad = () => cargar(mes)
 
@@ -152,6 +158,16 @@ export default function Dashboard() {
                     {formatN(data.totalMayoristas)} casos
                   </span>
                 )}
+                <button
+                  onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+                  className="flex items-center gap-2 text-xs border border-border bg-accent hover:bg-accent/80 px-3 py-1.5 rounded-lg font-semibold text-muted-foreground transition-colors"
+                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                >
+                  {theme === 'dark'
+                    ? <Sun className="h-3.5 w-3.5" />
+                    : <Moon className="h-3.5 w-3.5" />
+                  }
+                </button>
                 <button
                   onClick={handleLoad}
                   disabled={refreshing}
