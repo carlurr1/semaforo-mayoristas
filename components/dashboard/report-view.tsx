@@ -245,9 +245,42 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   const handleDownload = async () => {
     setDownloading(true)
     try {
+      // Importar html2canvas dinámicamente
+      const html2canvas = (await import('html2canvas')).default
+
+      const opts = {
+        scale: 2,
+        backgroundColor: '#0a0a0b',
+        useCORS: true,
+        logging: false,
+      }
+
+      const el1 = slide1Ref.current
+      const el2 = slide2Ref.current
+      const mesStr = (mes || 'informe').replace('-', '_')
+
+      if (el1) {
+        const canvas1 = await html2canvas(el1, opts)
+        const link1 = document.createElement('a')
+        link1.download = `Informe_Mayoristas_${mesStr}_Slide1.png`
+        link1.href = canvas1.toDataURL('image/png')
+        link1.click()
+      }
+
+      if (el2) {
+        await new Promise(r => setTimeout(r, 500))
+        const canvas2 = await html2canvas(el2, opts)
+        const link2 = document.createElement('a')
+        link2.download = `Informe_Mayoristas_${mesStr}_Slide2.png`
+        link2.href = canvas2.toDataURL('image/png')
+        link2.click()
+      }
+    } catch (e) {
+      console.error('Error al capturar:', e)
+      // Fallback print
       window.print()
     } finally {
-      setTimeout(() => setDownloading(false), 1000)
+      setDownloading(false)
     }
   }
 
@@ -394,7 +427,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                   <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2}  dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -415,7 +448,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                   <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}  dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
