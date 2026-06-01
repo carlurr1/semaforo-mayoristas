@@ -244,40 +244,40 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   // Descargar imagen (usando browser print como fallback)
   const handleDownload = async () => {
     setDownloading(true)
+    const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      // Importar html2canvas dinámicamente
-      const html2canvas = (await import('html2canvas')).default
+      // Cargar html2canvas desde CDN en runtime (no en build time)
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).html2canvas) { resolve(); return }
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+        script.onload = () => resolve()
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
 
-      const opts = {
-        scale: 2,
-        backgroundColor: '#0a0a0b',
-        useCORS: true,
-        logging: false,
-      }
-
+      const h2c = (window as any).html2canvas
+      const opts = { scale: 2, backgroundColor: '#0a0a0b', useCORS: true, logging: false }
       const el1 = slide1Ref.current
       const el2 = slide2Ref.current
-      const mesStr = (mes || 'informe').replace('-', '_')
 
       if (el1) {
-        const canvas1 = await html2canvas(el1, opts)
-        const link1 = document.createElement('a')
-        link1.download = `Informe_Mayoristas_${mesStr}_Slide1.png`
-        link1.href = canvas1.toDataURL('image/png')
-        link1.click()
+        const c1 = await h2c(el1, opts)
+        const a1 = document.createElement('a')
+        a1.download = `Informe_Mayoristas_${mesStr}_Slide1.png`
+        a1.href = c1.toDataURL('image/png')
+        a1.click()
       }
-
       if (el2) {
-        await new Promise(r => setTimeout(r, 500))
-        const canvas2 = await html2canvas(el2, opts)
-        const link2 = document.createElement('a')
-        link2.download = `Informe_Mayoristas_${mesStr}_Slide2.png`
-        link2.href = canvas2.toDataURL('image/png')
-        link2.click()
+        await new Promise(r => setTimeout(r, 600))
+        const c2 = await h2c(el2, opts)
+        const a2 = document.createElement('a')
+        a2.download = `Informe_Mayoristas_${mesStr}_Slide2.png`
+        a2.href = c2.toDataURL('image/png')
+        a2.click()
       }
     } catch (e) {
-      console.error('Error al capturar:', e)
-      // Fallback print
+      console.error('Error capturando:', e)
       window.print()
     } finally {
       setDownloading(false)
