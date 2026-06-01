@@ -249,13 +249,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                     <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} interval="preserveStartEnd" />
                 <YAxis tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                 <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showTmsCC && <Area type="monotone" dataKey="tmsCC" name="Con COFO" stroke="#60a5fa" fill="url(#gTmsCC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                {showTmsSC && <Area type="monotone" dataKey="tmsSC" name="Sin COFO" stroke="#34d399" fill="url(#gTmsSC)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -282,13 +282,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                     <stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} interval="preserveStartEnd" />
                 <YAxis domain={[0, 110]} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                 <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 {showSn1CC && <Area type="monotone" dataKey="sn1CC" name="Con COFO" stroke="#60a5fa" fill="url(#gSn1CC)" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />}
-                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />}
+                {showSn1SC && <Area type="monotone" dataKey="sn1SC" name="Sin COFO" stroke="#34d399" fill="url(#gSn1SC)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -301,7 +301,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
           <div style={{ height: Math.max(hdpDist.length * 36 + 40, 160) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={hdpDist} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                 <Tooltip content={<DarkTooltip />} />
@@ -321,7 +321,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
                 layout="vertical"
                 margin={{ top: 0, right: 8, left: 4, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                 <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
@@ -342,13 +342,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
           <div className="h-[200px] lg:h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hist.map(h => ({ mes: h.mes, sc: +h.tms_sc.toFixed(2), cc: +h.tms_cc.toFixed(2) }))} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                 <YAxis tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                 <ReferenceLine y={metaTms} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} />
+                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} strokeDasharray="" />
                 <Line type="monotone" dataKey="cc" name="Con COFO" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa' }} />
               </LineChart>
             </ResponsiveContainer>
@@ -359,13 +359,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
           <div className="h-[200px] lg:h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={hist.map(h => ({ mes: h.mes, sc: +(h.sn1_sc * 100).toFixed(1), cc: +(h.sn1_cc * 100).toFixed(1) }))} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                 <YAxis domain={[0, 105]} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} width={35} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                 <ReferenceLine y={metaSn1 * 100} stroke="#ff3b3b" strokeDasharray="6 3" strokeWidth={2} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} />
+                <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#34d399" strokeWidth={2.5} dot={{ r: 4, fill: '#34d399' }} strokeDasharray="" />
                 <Line type="monotone" dataKey="cc" name="Con COFO" stroke="#60a5fa" strokeWidth={2.5} dot={{ r: 4, fill: '#60a5fa' }} />
               </LineChart>
             </ResponsiveContainer>
@@ -379,7 +379,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
           <div style={{ height: Math.max(top10best.length * 30 + 40, 200) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={top10best.map(c => ({ name: shortName(c.nombre), tms: +(c.tms ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                 <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
@@ -397,7 +397,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
           <div style={{ height: Math.max(top10worst.length * 30 + 40, 200) }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={top10worst.map(c => ({ name: shortName(c.nombre), tms: +(c.tms ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                 <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                 <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
