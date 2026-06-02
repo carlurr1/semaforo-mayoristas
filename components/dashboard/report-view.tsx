@@ -245,23 +245,63 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
   // Descargar imagen (usando browser print como fallback)
-  const handleDownload = () => {
-    // Forzar modo claro antes de imprimir
-    const wasDark = document.documentElement.classList.contains('dark')
-    if (wasDark) {
-      document.documentElement.classList.remove('dark')
-      document.documentElement.classList.add('light')
+  const handleDownload = async () => {
+    setDownloading(true)
+    const mesStr = (mes || 'informe').replace('-', '_')
+    try {
+      // Cargar html-to-image desde CDN (diferente a html2canvas)
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).htmlToImage) { resolve(); return }
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js'
+        script.onload = () => resolve()
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+
+      const htmlToImage = (window as any).htmlToImage
+
+      // Forzar modo claro para captura
+      const wasDark = document.documentElement.classList.contains('dark')
+      if (wasDark) {
+        document.documentElement.classList.remove('dark')
+        document.documentElement.classList.add('light')
+      }
+      window.scrollTo(0, 0)
+      await new Promise(r => setTimeout(r, 800))
+
+      const captureEl = async (el: HTMLElement, filename: string) => {
+        // html-to-image maneja mejor SVG (Recharts) que html2canvas
+        const dataUrl = await htmlToImage.toPng(el, {
+          quality: 1.0,
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          cacheBust: true,
+          skipFonts: false,
+        })
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = dataUrl
+        link.click()
+        await new Promise(r => setTimeout(r, 600))
+      }
+
+      const el1 = slide1Ref.current
+      const el2 = slide2Ref.current
+      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
+
+      // Restaurar tema
+      if (wasDark) {
+        document.documentElement.classList.remove('light')
+        document.documentElement.classList.add('dark')
+      }
+    } catch (e) {
+      console.error('Error capturando:', e)
+      alert('Error al generar la imagen: ' + (e as Error).message)
+    } finally {
+      setDownloading(false)
     }
-    setTimeout(() => {
-      window.print()
-      // Restaurar tema después de imprimir
-      setTimeout(() => {
-        if (wasDark) {
-          document.documentElement.classList.remove('light')
-          document.documentElement.classList.add('dark')
-        }
-      }, 1000)
-    }, 300)
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -292,9 +332,10 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           </button>
           <button
             onClick={handleDownload}
-            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
+            disabled={downloading}
+            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
           >
-            🖨️ Imprimir / Guardar PDF
+            📷 {downloading ? 'Generando...' : 'Descargar imagen'}
           </button>
         </div>
       </div>
