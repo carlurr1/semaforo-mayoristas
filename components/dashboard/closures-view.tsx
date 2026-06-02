@@ -26,17 +26,24 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
   const serieDia: any[] = detalle?.serieDia || []
   const clientes: any[] = detalle?.clientes || []
 
-  console.log('CIERRE r:', { sn1: r.sn1, sn1s: r.sn1s, tms: r.tms, tmss: r.tmss })
+  // Recalcular SN1 desde HDP/n si los valores están raros
+  const sn1Final  = (r.sn1_n  > 0) ? (r.sn1_hdp  / r.sn1_n)  : (r.sn1  || 0)
+  const sn1sFinal = (r.sn1s_n > 0) ? (r.sn1s_hdp / r.sn1s_n) : (r.sn1s || 0)
+  const tmsFinal  = r.tms  || 0
+  const tmssFinal = r.tmss || 0
+
+  console.log('CIERRE valores finales:', { sn1Final, sn1sFinal, tmsFinal, tmssFinal })
+  console.log('CIERRE r:', { sn1: r.sn1, sn1s: r.sn1s, sn1_hdp: r.sn1_hdp, sn1_n: r.sn1_n, sn1s_hdp: r.sn1s_hdp, sn1s_n: r.sn1s_n })
 
   const acum = (() => {
     if (!serieDia.length) return []
     return serieDia.map((d: any) => {
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: r.tms  || 0,
-        tmsSC: r.tmss || 0,
-        sn1CC: (r.sn1  || 0) * 100,
-        sn1SC: (r.sn1s || 0) * 100,
+        tmsCC: tmsFinal,
+        tmsSC: tmssFinal,
+        sn1CC: sn1Final  * 100,
+        sn1SC: sn1sFinal * 100,
       }
     })
   })()
