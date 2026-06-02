@@ -245,97 +245,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
   // Descargar imagen (usando browser print como fallback)
-  const handleDownload = async () => {
-    setDownloading(true)
-    const mesStr = (mes || 'informe').replace('-', '_')
-    try {
-      // Cargar dom-to-image-more desde CDN
-      await new Promise<void>((resolve, reject) => {
-        if ((window as any).domtoimage) { resolve(); return }
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/3.5.0/dom-to-image-more.min.js'
-        script.onload = () => resolve()
-        script.onerror = reject
-        document.head.appendChild(script)
-      })
-
-      const domtoimage = (window as any).domtoimage
-
-      // Forzar modo claro
-      const wasDark = document.documentElement.classList.contains('dark')
-      if (wasDark) {
-        document.documentElement.classList.remove('dark')
-        document.documentElement.classList.add('light')
-      }
-      window.scrollTo(0, 0)
-      await new Promise(r => setTimeout(r, 800))
-
-      // Inyectar estilos temporales para captura limpia
-      const styleEl = document.createElement('style')
-      styleEl.id = 'capture-styles'
-      styleEl.textContent = `
-        * { outline: none !important; -webkit-tap-highlight-color: transparent !important; }
-        ::-webkit-scrollbar { display: none !important; }
-        .recharts-surface { overflow: visible !important; }
-        button, [role="button"] { outline: none !important; box-shadow: none !important; }
-        div[ref] { outline: none !important; }
-        table { border-collapse: collapse !important; }
-        td, th { outline: none !important; }
-        * { box-shadow: none !important; }
-        .rounded-2xl, .rounded-xl, .rounded-lg { box-shadow: none !important; }
-      `
-      document.head.appendChild(styleEl)
-
-      const captureEl = async (el: HTMLElement, filename: string) => {
-        el.scrollIntoView({ block: 'start' })
-        await new Promise(r => setTimeout(r, 500))
-
-        const dataUrl = await domtoimage.toPng(el, {
-          quality: 1.0,
-          bgcolor: '#ffffff',
-          width: el.offsetWidth * 2,
-          height: el.offsetHeight * 2,
-          style: {
-            transform: 'scale(2)',
-            transformOrigin: 'top left',
-            width: el.offsetWidth + 'px',
-            height: el.offsetHeight + 'px',
-          },
-          filter: (node: any) => {
-            // Eliminar elementos que generan outlines/cuadrículas raras
-            if (node.tagName === 'BUTTON') return false
-            return true
-          },
-          // Injectar estilos para quitar outlines y scrollbars
-          imagePlaceholder: undefined,
-          cacheBust: true,
-        })
-
-        const a = document.createElement('a')
-        a.download = filename
-        a.href = dataUrl
-        a.click()
-        await new Promise(r => setTimeout(r, 600))
-      }
-
-      const el1 = slide1Ref.current
-      const el2 = slide2Ref.current
-      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
-      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
-
-      // Restaurar tema
-      if (wasDark) {
-        document.documentElement.classList.remove('light')
-        document.documentElement.classList.add('dark')
-      }
-    } catch (e) {
-      console.error('Error capturando:', e)
-      alert('Error al generar la imagen. Intenta de nuevo.')
-    } finally {
-      const s = document.getElementById('capture-styles')
-      if (s) s.remove()
-      setDownloading(false)
-    }
+  const handleDownload = () => {
+    window.print()
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -366,10 +277,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           </button>
           <button
             onClick={handleDownload}
-            disabled={downloading}
-            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
           >
-            📷 {downloading ? 'Generando...' : 'Descargar imagen'}
+            🖨️ Imprimir / Guardar PDF
           </button>
         </div>
       </div>
