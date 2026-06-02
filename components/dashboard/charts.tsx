@@ -15,12 +15,12 @@ const META_SN1 = 0.70
 
 // Histórico hardcodeado — igual al original
 const HIST_BASE = [
-  { mes: 'Nov 25', tms_sc: 10.0156, tms_cc: 36.2942, sn1_sc: 0.757, sn1_cc: 0.52  },
   { mes: 'Dic 25', tms_sc: 7.7375,  tms_cc: 36.3886, sn1_sc: 0.71,  sn1_cc: 0.465 },
   { mes: 'Ene 26', tms_sc: 9.0875,  tms_cc: 28.1456, sn1_sc: 0.712, sn1_cc: 0.537 },
   { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
   { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
+  { mes: 'May 26', tms_sc: 9.4947, tms_cc: 27.8572, sn1_sc: 0.713,  sn1_cc: 0.557 },
 ]
 
 function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -77,9 +77,10 @@ interface ChartsSectionProps {
   clientes: ClienteData[]
   metaSn1: number
   metaTms: number
+  histCierres?: any[]
 }
 
-export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectionProps) {
+export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }: ChartsSectionProps) {
   const [showTmsCC, setShowTmsCC] = useState(true)
   const [showTmsSC, setShowTmsSC] = useState(true)
   const [showSn1CC, setShowSn1CC] = useState(true)
@@ -144,9 +145,10 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
     })
   }, [data])
 
-  // Histórico actualizado con mes actual
+  // Histórico — usa cierres guardados si están disponibles, sino HIST_BASE
   const hist = useMemo(() => {
-    const h = [...HIST_BASE]
+    const base = histCierres && histCierres.length >= 3 ? histCierres : [...HIST_BASE]
+    const h = [...base]
     const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
     const mes = data.serieDia?.[0]?.fecha?.slice(0, 7) || ''
     if (mes) {
@@ -157,8 +159,8 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms }: ChartsSectio
       if (idx >= 0) h[idx] = entry
       else h.push(entry)
     }
-    return h
-  }, [data])
+    return h.slice(-7)
+  }, [data, histCierres])
 
   // Top clientes
   const topClientes = useMemo(() =>
