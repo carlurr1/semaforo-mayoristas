@@ -578,8 +578,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
 
         {/* Tabla top 10 clientes — desktop */}
-        <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-xs">
+        <div className="hidden md:block rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr className="bg-gradient-to-r from-blue-900 to-blue-700">
                 <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Cliente</th>
