@@ -249,7 +249,6 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
     setDownloading(true)
     const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      // Cargar html2canvas desde CDN en runtime (no en build time)
       await new Promise<void>((resolve, reject) => {
         if ((window as any).html2canvas) { resolve(); return }
         const script = document.createElement('script')
@@ -264,13 +263,11 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       const bgColor = isDark ? '#0a0a0b' : '#ffffff'
 
       const captureEl = async (el: HTMLElement, filename: string) => {
-        // Scroll al top de la página primero
         window.scrollTo(0, 0)
         await new Promise(r => setTimeout(r, 500))
-        
         const opts = {
           scale: 2,
-          backgroundColor: isDark ? '#0a0a0b' : '#ffffff',
+          backgroundColor: bgColor,
           useCORS: true,
           logging: false,
           allowTaint: true,
@@ -283,33 +280,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         a.click()
         await new Promise(r => setTimeout(r, 600))
       }
-        
-        const rect = el.getBoundingClientRect()
-        const opts = {
-          scale: 2,
-          backgroundColor: bgColor,
-          useCORS: true,
-          logging: false,
-          windowWidth: el.scrollWidth,
-          windowHeight: el.scrollHeight,
-          x: 0,
-          y: 0,
-          scrollX: -window.scrollX,
-          scrollY: -window.scrollY,
-          width: el.offsetWidth,
-          height: el.offsetHeight,
-        }
-        const canvas = await h2c(el, opts)
-        const a = document.createElement('a')
-        a.download = filename
-        a.href = canvas.toDataURL('image/png', 1.0)
-        a.click()
-        await new Promise(r => setTimeout(r, 400))
-      }
 
       const el1 = slide1Ref.current
       const el2 = slide2Ref.current
-
       if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
       if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
     } catch (e) {
