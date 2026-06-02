@@ -249,17 +249,17 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
     setDownloading(true)
     const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      // Cargar html2canvas desde CDN
+      // Cargar dom-to-image-more desde CDN
       await new Promise<void>((resolve, reject) => {
-        if ((window as any).html2canvas) { resolve(); return }
+        if ((window as any).domtoimage) { resolve(); return }
         const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image-more/3.5.0/dom-to-image-more.min.js'
         script.onload = () => resolve()
         script.onerror = reject
         document.head.appendChild(script)
       })
 
-      const h2c = (window as any).html2canvas
+      const domtoimage = (window as any).domtoimage
 
       // Forzar modo claro
       const wasDark = document.documentElement.classList.contains('dark')
@@ -271,45 +271,25 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       await new Promise(r => setTimeout(r, 800))
 
       const captureEl = async (el: HTMLElement, filename: string) => {
-        // Asegurar que el elemento esté completamente visible y rendered
         el.scrollIntoView({ block: 'start' })
         await new Promise(r => setTimeout(r, 300))
 
-        const opts = {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          foreignObjectRendering: false,
-          // Forzar el ancho de la ventana para evitar reflow
-          windowWidth: 1400,
-          windowHeight: el.scrollHeight + 100,
-          onclone: (doc: Document, clonedEl: HTMLElement) => {
-            // Asegurar tema claro en el clon
-            doc.documentElement.classList.remove('dark')
-            doc.documentElement.classList.add('light')
-            
-            // Forzar el ancho del body y el contenedor en el clon
-            doc.body.style.width = '1400px'
-            doc.body.style.minWidth = '1400px'
-            
-            // Resolver line-height y alineación en TODOS los elementos
-            const allEls = clonedEl.querySelectorAll('*')
-            allEls.forEach((node: any) => {
-              if (node.style) {
-                // Forzar line-height normal para evitar el desplazamiento
-                const cs = window.getComputedStyle(node)
-                node.style.lineHeight = cs.lineHeight
-                node.style.verticalAlign = 'middle'
-              }
-            })
+        const dataUrl = await domtoimage.toPng(el, {
+          quality: 1.0,
+          bgcolor: '#ffffff',
+          width: el.offsetWidth * 2,
+          height: el.offsetHeight * 2,
+          style: {
+            transform: 'scale(2)',
+            transformOrigin: 'top left',
+            width: el.offsetWidth + 'px',
+            height: el.offsetHeight + 'px',
           }
-        }
-        const canvas = await h2c(el, opts)
+        })
+
         const a = document.createElement('a')
         a.download = filename
-        a.href = canvas.toDataURL('image/png', 1.0)
+        a.href = dataUrl
         a.click()
         await new Promise(r => setTimeout(r, 600))
       }
