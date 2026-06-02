@@ -245,93 +245,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
   // Descargar imagen (usando browser print como fallback)
-  const handleDownload = async () => {
-    setDownloading(true)
-    const mesStr = (mes || 'informe').replace('-', '_')
-    try {
-      // Cargar html2canvas desde CDN
-      await new Promise<void>((resolve, reject) => {
-        if ((window as any).html2canvas) { resolve(); return }
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
-        script.onload = () => resolve()
-        script.onerror = reject
-        document.head.appendChild(script)
-      })
-
-      const h2c = (window as any).html2canvas
-
-      const captureEl = async (el: HTMLElement, filename: string) => {
-        // Clonar el elemento con estilos computados resueltos
-        const clone = el.cloneNode(true) as HTMLElement
-        
-        // Aplicar todos los estilos computados al clon
-        const applyStyles = (src: Element, dst: Element) => {
-          const computed = window.getComputedStyle(src)
-          const dstEl = dst as HTMLElement
-          dstEl.style.cssText = computed.cssText
-          // Forzar colores explícitos
-          dstEl.style.color = computed.color
-          dstEl.style.backgroundColor = computed.backgroundColor
-          dstEl.style.borderColor = computed.borderColor
-          dstEl.style.fontFamily = computed.fontFamily
-          dstEl.style.fontSize = computed.fontSize
-          dstEl.style.fontWeight = computed.fontWeight
-          dstEl.style.lineHeight = computed.lineHeight
-          dstEl.style.padding = computed.padding
-          dstEl.style.margin = computed.margin
-          dstEl.style.display = computed.display
-          dstEl.style.gap = computed.gap
-          dstEl.style.gridTemplateColumns = computed.gridTemplateColumns
-          dstEl.style.borderRadius = computed.borderRadius
-          dstEl.style.borderLeftWidth = computed.borderLeftWidth
-          dstEl.style.borderLeftColor = computed.borderLeftColor
-          dstEl.style.borderLeftStyle = computed.borderLeftStyle
-          for (let i = 0; i < src.children.length; i++) {
-            applyStyles(src.children[i], dst.children[i])
-          }
-        }
-        applyStyles(el, clone)
-
-        // Montar en DOM temporalmente
-        clone.style.position = 'fixed'
-        clone.style.top = '0'
-        clone.style.left = '0'
-        clone.style.zIndex = '-9999'
-        clone.style.width = el.offsetWidth + 'px'
-        document.body.appendChild(clone)
-        await new Promise(r => setTimeout(r, 300))
-
-        const opts = {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          foreignObjectRendering: false,
-          width: el.offsetWidth,
-          height: el.offsetHeight,
-        }
-        const canvas = await h2c(clone, opts)
-        document.body.removeChild(clone)
-
-        const a = document.createElement('a')
-        a.download = filename
-        a.href = canvas.toDataURL('image/png', 1.0)
-        a.click()
-        await new Promise(r => setTimeout(r, 600))
-      }
-
-      const el1 = slide1Ref.current
-      const el2 = slide2Ref.current
-      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
-      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
-    } catch (e) {
-      console.error('Error capturando:', e)
-      window.print()
-    } finally {
-      setDownloading(false)
-    }
+  const handleDownload = () => {
+    // Usar impresión nativa del navegador — render perfecto sin html2canvas
+    window.print()
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -340,7 +256,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   return (
     <div className="py-4 space-y-6">
       {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h2 className="text-xl font-bold text-foreground tracking-tight">Informe Semanal — Mayoristas {mLabel}</h2>
           <p className="text-xs text-muted-foreground font-mono mt-1">{mes}</p>
@@ -362,17 +278,16 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           </button>
           <button
             onClick={handleDownload}
-            disabled={downloading}
-            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+            className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center gap-2"
           >
-            📷 {downloading ? 'Generando...' : 'Descargar imagen'}
+            🖨️ Imprimir / Guardar PDF
           </button>
         </div>
       </div>
 
       {/* Panel ajuste manual */}
       {ajusteOpen && (
-        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5">
+        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5 no-print">
           <p className="text-xs font-bold text-warning mb-4">⚠️ Modo ajuste — estos valores se usan solo para el informe. El dashboard no cambia.</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -406,7 +321,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       )}
 
       {/* ═══ SLIDE 1 ═══ */}
-      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6">
+      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6 print-slide">
 
         {/* Header slide 1 */}
         <div className="flex items-center justify-between pb-5 border-b border-border">
@@ -546,14 +461,14 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       </div>
 
       {/* Separador */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 no-print">
         <div className="flex-1 h-px bg-border" />
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Diapositiva 2 — Top 10 Clientes</p>
         <div className="flex-1 h-px bg-border" />
       </div>
 
       {/* ═══ SLIDE 2 ═══ */}
-      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5">
+      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5 print-slide">
 
         {/* Header slide 2 */}
         <div className="flex items-center justify-between pb-4 border-b border-border">
