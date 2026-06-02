@@ -145,21 +145,10 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     })
   }, [data])
 
-  // Histórico — usa cierres guardados si están disponibles, sino HIST_BASE
+  // Histórico — solo meses cerrados (no incluye mes en curso)
   const hist = useMemo(() => {
     const base = histCierres && histCierres.length >= 3 ? histCierres : [...HIST_BASE]
-    const h = [...base]
-    const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    const mes = data.serieDia?.[0]?.fecha?.slice(0, 7) || ''
-    if (mes) {
-      const [yy, mm] = mes.split('-')
-      const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
-      const idx = h.findIndex(x => x.mes === mL)
-      const entry = { mes: mL, tms_sc: data.tmss, tms_cc: data.tms, sn1_sc: data.sn1s, sn1_cc: data.sn1 }
-      if (idx >= 0) h[idx] = entry
-      else h.push(entry)
-    }
-    return h.slice(-7)
+    return base.slice(-6)
   }, [data, histCierres])
 
   // Top clientes
