@@ -26,16 +26,24 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
   const serieDia: any[] = detalle?.serieDia || []
   const clientes: any[] = detalle?.clientes || []
 
+  // DEBUG temporal
+  console.log('CIERRE r:', { sn1: r.sn1, sn1s: r.sn1s, tms: r.tms, tmss: r.tmss })
+  console.log('CIERRE selected.resumen:', selected.resumen)
+  console.log('CIERRE detalle:', detalle ? Object.keys(detalle) : null)
+
+  // Si los valores SN1 vienen como porcentaje (>1) usar directo, sino multiplicar por 100
+  const sn1Val  = (r.sn1  || 0) > 1 ? (r.sn1  || 0) : (r.sn1  || 0) * 100
+  const sn1sVal = (r.sn1s || 0) > 1 ? (r.sn1s || 0) : (r.sn1s || 0) * 100
+
   const acum = (() => {
     if (!serieDia.length) return []
     return serieDia.map((d: any) => {
       return {
         fecha: d.fecha.slice(5),
-        // En cierres: mostrar línea plana con los KPIs globales validados
         tmsCC: r.tms  || 0,
         tmsSC: r.tmss || 0,
-        sn1CC: (r.sn1  || 0) * 100,
-        sn1SC: (r.sn1s || 0) * 100,
+        sn1CC: sn1Val,
+        sn1SC: sn1sVal,
       }
     })
   })()
