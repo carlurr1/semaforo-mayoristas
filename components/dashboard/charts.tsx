@@ -91,6 +91,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     const records = data.bdRecords || []
     const serieDia = data.serieDia || []
     const esCierre = (data as any).fuenteCierre === true
+    console.log('CHARTS fuenteCierre:', esCierre, 'data.sn1:', data.sn1, 'data.sn1s:', data.sn1s)
     if (!serieDia.length) return []
 
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
