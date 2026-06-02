@@ -75,46 +75,81 @@ html.light {
   color: hsl(240 10% 8%);
 }
 
-/* Estilos de impresión — solo el informe */
+/* ═══════════════════════════════════════════════════════════ */
+/* Estilos de impresión — solo el informe limpio              */
+/* ═══════════════════════════════════════════════════════════ */
 @media print {
-  /* Ocultar todo excepto el informe */
+  /* Ocultar todo lo que no es el informe */
   header, nav, .no-print {
     display: none !important;
   }
-  
-  /* Forzar fondo blanco y colores planos */
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  
-  html.dark {
+
+  /* Forzar tema claro siempre al imprimir */
+  html, html.dark, html.light {
     --background: 0 0% 100%;
     --foreground: 240 10% 8%;
     --card: 0 0% 100%;
+    --card-foreground: 240 10% 8%;
     --border: 240 6% 88%;
+    --input: 240 6% 94%;
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 240 6% 94%;
     --muted-foreground: 240 4% 42%;
+    --accent: 240 6% 95%;
+    --accent-foreground: 240 10% 12%;
+    --success: 142 71% 38%;
+    --warning: 48 96% 45%;
+    --danger: 0 84% 55%;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
-  
-  /* Forzar que los colores se impriman */
+
+  body {
+    background: #ffffff !important;
+  }
+
+  /* Forzar que los colores se impriman (sin esto Chrome quita fondos) */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
-  
-  /* Cada slide en su propia página */
+
+  /* Cada slide en su propia página A4 horizontal */
   .print-slide {
-    page-break-after: always;
-    break-after: page;
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+    border: 1px solid #e5e7eb !important;
   }
-  
+  .print-slide:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Quitar padding del main */
   main {
     padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Configuración de página */
+  @page {
+    margin: 1cm 1cm 1cm 1cm;
+    size: A4 landscape;
+  }
+
+  /* Ocultar elementos específicos que no van en la impresión */
+  button {
+    display: none !important;
   }
   
-  /* Quitar márgenes de página */
-  @page {
-    margin: 1cm;
-    size: A4 landscape;
+  /* Asegurar que los SVG (Recharts) se rendericen bien */
+  svg {
+    max-width: 100% !important;
+    height: auto !important;
   }
 }
