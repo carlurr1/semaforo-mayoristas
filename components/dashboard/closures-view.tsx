@@ -20,8 +20,9 @@ interface ClosuresViewProps {
 
 // ── Detalle del cierre con gráficas ───────────────────────────
 function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle: any | null }) {
-  // Usar detalle completo cuando está disponible (tiene sn1s_hdp, sn1s_n correctos)
-  const r = detalle ? { ...selected.resumen, ...detalle } : selected.resumen
+  // Usar siempre los valores del resumen (KPIs validados del cierre)
+  // y solo tomar serieDia/clientes del detalle
+  const r = { ...detalle, ...selected.resumen }
   const serieDia: any[] = detalle?.serieDia || []
   const clientes: any[] = detalle?.clientes || []
 
