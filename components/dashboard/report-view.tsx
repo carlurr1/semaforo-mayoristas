@@ -198,13 +198,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
   const [yy, mm] = mes.split('-')
   const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
-  const histIdx = hist.findIndex(h => h.mes === mL)
-  if (histIdx >= 0) {
-    hist[histIdx] = { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
-  } else {
-    hist.push({ mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 })
-  }
-  const histFinal = hist.slice(-7)
+  // El histórico SOLO debe mostrar los meses cerrados (no el mes en curso)
+  // hist ya viene con los cierres guardados o HIST_BASE como fallback
+  const histFinal = hist.slice(-6)
 
   // Promedios históricos
   const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
