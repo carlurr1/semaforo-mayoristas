@@ -90,8 +90,9 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
   const acumulado = useMemo(() => {
     const records = data.bdRecords || []
     const serieDia = data.serieDia || []
-    const esCierre = (data as any).fuenteCierre === true
-    console.log('CHARTS fuenteCierre:', esCierre, 'data.sn1:', data.sn1, 'data.sn1s:', data.sn1s)
+    // Detectar si los datos vienen de un cierre: tiene mesAnio o fuenteCierre=true
+    const esCierre = !!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive
+    console.log('CHARTS fuenteCierre:', esCierre, 'data.sn1:', data.sn1, 'data.sn1s:', data.sn1s, 'mesAnio:', (data as any).mesAnio)
     if (!serieDia.length) return []
 
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
