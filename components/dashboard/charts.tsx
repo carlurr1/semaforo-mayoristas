@@ -90,6 +90,7 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
   const acumulado = useMemo(() => {
     const records = data.bdRecords || []
     const serieDia = data.serieDia || []
+    const esCierre = (data as any).fuenteCierre === true
     if (!serieDia.length) return []
 
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
@@ -135,12 +136,14 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
         acc.sn1_hdp  = Math.round(acc.sn1_n  * data.sn1)
         acc.sn1s_hdp = Math.round(acc.sn1s_n * data.sn1s)
       }
+      // Si los datos vienen de un cierre guardado, mostrar SN1 como línea plana
+      // con los valores globales del cierre (más fiables que recalcular)
       return {
         fecha: d.fecha.slice(5),
         tmsCC: acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
         tmsSC: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
-        sn1CC: acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
-        sn1SC: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
+        sn1CC: esCierre ? (data.sn1  || 0) * 100 : (acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null),
+        sn1SC: esCierre ? (data.sn1s || 0) * 100 : (acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null),
       }
     })
   }, [data])
