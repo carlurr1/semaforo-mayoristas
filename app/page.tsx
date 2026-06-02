@@ -69,20 +69,25 @@ export default function Dashboard() {
     try {
       // 1. Intentar primero traer el cierre guardado en Sheets
       let d: any = null
+      let fuenteCierre = false
       if (mesTarget) {
         try {
           const cierreRes = await gasCall('cierre', { mes: mesTarget })
-          if (cierreRes.ok && cierreRes.data) {
+          console.log('Respuesta cierre:', cierreRes)
+          if (cierreRes && cierreRes.ok && cierreRes.data) {
             d = cierreRes.data
-            setLoadMsg('Cierre guardado encontrado')
+            d.fuenteCierre = true
+            fuenteCierre = true
+            setLoadMsg('Cierre guardado encontrado ✓')
           }
         } catch (e) {
-          // ignorar — caemos al fallback de Salesforce
+          console.log('No se pudo cargar cierre, fallback a SF:', e)
         }
       }
 
       // 2. Si no hay cierre, consultar Salesforce
       if (!d) {
+        setLoadMsg('Consultando Salesforce...')
         const params: Record<string,string> = {}
         if (mesTarget) params.mes = mesTarget
         d = await gasCall('metricas', params)
@@ -90,7 +95,7 @@ export default function Dashboard() {
 
       clearInterval(iv)
       setProgress(100)
-      setLoadMsg('¡Listo!')
+      setLoadMsg(fuenteCierre ? '¡Cierre cargado!' : '¡Listo!')
       if (d.ok === false) throw new Error(d.error || 'Sin datos')
       setData(d)
     } catch (e: unknown) {
