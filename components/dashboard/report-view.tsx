@@ -249,7 +249,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
     setDownloading(true)
     const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      // Cargar html2canvas desde CDN igual que en el original
+      // Cargar html2canvas desde CDN
       await new Promise<void>((resolve, reject) => {
         if ((window as any).html2canvas) { resolve(); return }
         const script = document.createElement('script')
@@ -261,50 +261,71 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
       const h2c = (window as any).html2canvas
 
-      const descargar = (canvas: HTMLCanvasElement, nombre: string) => {
+      // Forzar modo claro
+      const wasDark = document.documentElement.classList.contains('dark')
+      if (wasDark) {
+        document.documentElement.classList.remove('dark')
+        document.documentElement.classList.add('light')
+      }
+      window.scrollTo(0, 0)
+      await new Promise(r => setTimeout(r, 500))
+
+      const captureEl = async (el: HTMLElement, filename: string) => {
+        // Asegurar que el elemento sea visible completo
+        const originalWidth = el.style.width
+        const originalMaxWidth = el.style.maxWidth
+        
+        // Forzar ancho fijo grande para captura uniforme
+        el.style.width = '1400px'
+        el.style.maxWidth = '1400px'
+        
+        // Esperar que Recharts re-renderice con el nuevo ancho
+        await new Promise(r => setTimeout(r, 800))
+        
+        // Dispatch resize para forzar a Recharts a recalcular
+        window.dispatchEvent(new Event('resize'))
+        await new Promise(r => setTimeout(r, 400))
+
+        const canvas = await h2c(el, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          width: el.scrollWidth,
+          height: el.scrollHeight,
+          windowWidth: 1400,
+          onclone: (doc: Document) => {
+            doc.documentElement.classList.remove('dark')
+            doc.documentElement.classList.add('light')
+          }
+        })
+
+        // Restaurar
+        el.style.width = originalWidth
+        el.style.maxWidth = originalMaxWidth
+        window.dispatchEvent(new Event('resize'))
+
         const link = document.createElement('a')
-        link.download = nombre
-        link.href = canvas.toDataURL('image/png')
+        link.download = filename
+        link.href = canvas.toDataURL('image/png', 1.0)
         link.click()
+        await new Promise(r => setTimeout(r, 600))
       }
 
-      // EXACTO al código original que funcionaba
-      const opts = {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        onclone: (doc: Document) => {
-          // Forzar display block en canvas (Chart.js / Recharts)
-          const canvases = doc.querySelectorAll('canvas')
-          canvases.forEach((c: any) => { c.style.display = 'block' })
-        }
-      }
+      const el1 = slide1Ref.current
+      const el2 = slide2Ref.current
+      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
 
-      setTimeout(async () => {
-        try {
-          const el1 = slide1Ref.current
-          const el2 = slide2Ref.current
-          if (el1) {
-            const c1 = await h2c(el1, opts)
-            descargar(c1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
-          }
-          if (el2) {
-            setTimeout(async () => {
-              const c2 = await h2c(el2, opts)
-              descargar(c2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
-              setDownloading(false)
-            }, 500)
-          } else {
-            setDownloading(false)
-          }
-        } catch (e) {
-          console.error('Error capturando:', e)
-          setDownloading(false)
-        }
-      }, 800)
+      // Restaurar tema
+      if (wasDark) {
+        document.documentElement.classList.remove('light')
+        document.documentElement.classList.add('dark')
+      }
     } catch (e) {
       console.error('Error capturando:', e)
+      alert('Error al generar la imagen. Intenta de nuevo.')
+    } finally {
       setDownloading(false)
     }
   }
@@ -379,87 +400,53 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
       )}
 
-      {/* ═══ SLIDE 1 — CSS inline puro para captura perfecta ═══ */}
-      <div ref={slide1Ref} style={{
-        background: '#ffffff',
-        borderRadius: '16px',
-        border: '1px solid #e5e7eb',
-        padding: '28px',
-        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-        color: '#111827',
-      }}>
+      {/* ═══ SLIDE 1 — Tailwind premium ═══ */}
+      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6 print-slide">
 
         {/* Header slide 1 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '20px', marginBottom: '24px', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', background: '#dbeafe', border: '1px solid #93c5fd', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '13px', color: '#1d4ed8' }}>ETB</div>
+        <div className="flex items-center justify-between pb-5 border-b border-border">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-sm">ETB</div>
             <div>
-              <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827', lineHeight: 1.2 }}>Semáforo Mayoristas</div>
-              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '3px' }}>ETB E&amp;G Soporte — Customer Operation Success</div>
+              <p className="text-lg font-bold text-foreground tracking-tight">Semáforo Mayoristas</p>
+              <p className="text-xs text-muted-foreground font-mono">ETB E&G Soporte — Customer Operation Success</p>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: '#1d4ed8', lineHeight: 1 }}>{mLabel}</div>
-            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Corte: {today}</div>
+          <div className="text-right">
+            <p className="font-mono text-2xl font-bold text-primary tracking-tight">{mLabel}</p>
+            <p className="text-xs text-muted-foreground mt-1">Corte: {today}</p>
           </div>
         </div>
 
-        {/* 8 KPIs — CSS puro */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '20px' }}>
-          {[
-            { lbl: 'SN1 Con COFO',  val: formatPct(sn1),  sub: `${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`,   st: sn1Status(sn1,  metaSn1) },
-            { lbl: 'SN1 Sin COFO',  val: formatPct(sn1s), sub: `${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`, st: sn1Status(sn1s, metaSn1) },
-            { lbl: 'TMS Con COFO',  val: formatHMS(tms),  sub: `${formatN(data.tms_n)} casos · Meta ${metaTms}h`,  st: tmsStatus(tms,  metaTms) },
-            { lbl: 'TMS Sin COFO',  val: formatHMS(tmss), sub: `${formatN(data.tmss_n)} casos · Meta ${metaTms}h`, st: tmsStatus(tmss, metaTms) },
-            { lbl: `Prom TMS s/COFO (${hist.length}m)`, val: formatHMS(avgTmsSc),               sub: `Promedio ${hist.length} meses`, st: tmsStatus(avgTmsSc, metaTms) },
-            { lbl: `Prom TMS c/COFO (${hist.length}m)`, val: formatHMS(avgTmsCc),               sub: `Promedio ${hist.length} meses`, st: tmsStatus(avgTmsCc, metaTms) },
-            { lbl: `Prom SN1 s/COFO (${hist.length}m)`, val: `${(avgSn1Sc * 100).toFixed(1)}%`, sub: `Promedio ${hist.length} meses`, st: sn1Status(avgSn1Sc, metaSn1) },
-            { lbl: `Prom SN1 c/COFO (${hist.length}m)`, val: `${(avgSn1Cc * 100).toFixed(1)}%`, sub: `Promedio ${hist.length} meses`, st: sn1Status(avgSn1Cc, metaSn1) },
-          ].map((k, i) => {
-            const colors = {
-              success: { border: '#16a34a', val: '#15803d', badgeBg: '#dcfce7', badgeText: '#15803d', dot: '#22c55e', label: 'En objetivo' },
-              warning: { border: '#eab308', val: '#a16207', badgeBg: '#fef3c7', badgeText: '#a16207', dot: '#eab308', label: 'En seguimiento' },
-              danger:  { border: '#dc2626', val: '#b91c1c', badgeBg: '#fee2e2', badgeText: '#b91c1c', dot: '#ef4444', label: 'Fuera del objetivo' },
-              neutral: { border: '#3b82f6', val: '#1d4ed8', badgeBg: '#dbeafe', badgeText: '#1d4ed8', dot: '#3b82f6', label: 'Sin meta' },
-            }
-            const c = colors[k.st]
-            return (
-              <div key={i} style={{
-                background: '#ffffff',
-                border: '1px solid #e5e7eb',
-                borderLeft: `4px solid ${c.border}`,
-                borderRadius: '10px',
-                padding: '14px 16px',
-              }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '8px' }}>{k.lbl}</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, fontFamily: '"SF Mono", Menlo, Consolas, monospace', color: c.val, lineHeight: 1, marginBottom: '6px' }}>{k.val}</div>
-                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '10px', lineHeight: 1.4 }}>{k.sub}</div>
-                <div style={{ display: 'inline-block', background: c.badgeBg, color: c.badgeText, fontSize: '9px', fontWeight: 700, padding: '3px 10px', borderRadius: '12px' }}>
-                  <span style={{ display: 'inline-block', width: '5px', height: '5px', borderRadius: '50%', background: c.dot, marginRight: '5px', verticalAlign: 'middle' }} />
-                  {c.label}
-                </div>
-              </div>
-            )
-          })}
+        {/* 8 KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <InfKPICard label="SN1 Con COFO"    value={formatPct(sn1)}  sub={`${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`}   status={sn1Status(sn1, metaSn1)} />
+          <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
+          <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
+          <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
+          <InfKPICard label={`Prom TMS s/COFO (${hist.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
+          <InfKPICard label={`Prom TMS c/COFO (${hist.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${hist.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${hist.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
         </div>
 
         {/* Top 5 mejor / peor TMS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
             { title: 'Top 5 clientes — mejor TMS', data: top5best },
             { title: 'Top 5 clientes — peor TMS',  data: top5worst },
           ].map(({ title, data: d }) => (
-            <div key={title} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '10px' }}>{title}</div>
+            <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
               <div style={{ height: 180 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={d.map(c => ({ name: c.nombre.length > 18 ? c.nombre.slice(0, 17) + '…' : c.nombre, tms: +(c.tmss ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-                    <XAxis type="number" tick={{ fontSize: 9, fill: '#6b7280' }} tickFormatter={v => `${v}h`} />
-                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: '#374151' }} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                    <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                     <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                     <Bar dataKey="tms" radius={[0, 4, 4, 0]} barSize={14}>
-                      {d.map((c, i) => <Cell key={i} fill={(c.tmss ?? 0) <= metaTms ? '#22c55e' : '#ef4444'} />)}
+                      {d.map((c, i) => <Cell key={i} fill={(c.tmss ?? 0) <= metaTms ? 'hsl(142 71% 45% / 0.75)' : 'hsl(0 84% 60% / 0.7)'} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -469,44 +456,44 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
 
         {/* Evolución diaria TMS + SN1 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
-          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '10px' }}>TMS acumulado — evolución del mes</div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">TMS acumulado — evolución del mes</p>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.15}/><stop offset="95%" stopColor="#22c55e" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: '#6b7280' }} />
-                  <YAxis tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}h`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                  <ReferenceLine y={metaTms} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={2} />
-                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#3b82f6" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#22c55e" fill="url(#rg2)" strokeWidth={2} dot={false} />
+                  <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '10px' }}>SN1 acumulado — evolución del mes</div>
+          <div className="rounded-xl border border-border bg-accent/30 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
             <div style={{ height: 160 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.15}/><stop offset="95%" stopColor="#22c55e" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: '#6b7280' }} />
-                  <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: '#6b7280' }} tickFormatter={v => `${v}%`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
-                  <ReferenceLine y={metaSn1 * 100} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={2} />
-                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#3b82f6" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#22c55e" fill="url(#rg4)" strokeWidth={2} dot={false} />
+                  <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -514,7 +501,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
 
         {/* Histórico 6 meses TMS + SN1 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
             { title: 'TMS mensual — tendencia', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
             { title: 'SN1 mensual — tendencia',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
@@ -526,18 +513,18 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
             return (
-              <div key={title} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '14px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '10px' }}>{title}</div>
+              <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
                 <div style={{ height: 150 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 9, fill: '#6b7280' }} />
-                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: '#6b7280' }} tickFormatter={fmt} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
+                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
-                      <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={2} />
-                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="#22c55e" strokeWidth={2} dot={{ r: 4, fill: '#22c55e' }} />
-                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4, fill: '#3b82f6' }} />
+                      <ReferenceLine y={meta} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -547,9 +534,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
 
         {/* Footer slide 1 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '14px', borderTop: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '10px', color: '#6b7280' }}>Generado automáticamente · ETB Semáforo Mayoristas</div>
-          <div style={{ fontSize: '10px', color: '#6b7280', fontFamily: '"SF Mono", Menlo, Consolas, monospace' }}>{now}</div>
+        <div className="flex justify-between items-center pt-4 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
 
