@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [data,       setData]       = useState<MetricasData | null>(null)
   const [error,      setError]      = useState<string | null>(null)
   const [theme,      setTheme]      = useState<'dark'|'light'>('dark')
+  const [histCierres, setHistCierres] = useState<any[]>([])
   const [service,    setService]    = useState('')
   const [tipo,       setTipo]       = useState('')
   const [cliente,    setCliente]    = useState('')
@@ -84,7 +85,35 @@ export default function Dashboard() {
     }
   }, [mes])
 
-  useEffect(() => { cargar() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    cargar()
+    // Cargar histórico de cierres para las gráficas de tendencia
+    gasCall('cierres').then(res => {
+      if (res.ok && res.lista?.length) {
+        const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+        const hist = res.lista
+          .filter((c: any) => c.resumen)
+          .map((c: any) => {
+            const [yy, mm] = c.mesAnio.split('-')
+            return {
+              mes: `${meses[parseInt(mm)]} ${yy.slice(2)}`,
+              tms_sc: c.resumen.tmss,
+              tms_cc: c.resumen.tms,
+              sn1_sc: c.resumen.sn1s,
+              sn1_cc: c.resumen.sn1,
+            }
+          })
+          .sort((a: any, b: any) => {
+            const mL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+            const [am, ay] = [mL.indexOf(a.mes.slice(0,3)), parseInt(a.mes.slice(-2))]
+            const [bm, by] = [mL.indexOf(b.mes.slice(0,3)), parseInt(b.mes.slice(-2))]
+            return ay !== by ? ay - by : am - bm
+          })
+          .slice(-7) // últimos 7 meses
+        setHistCierres(hist)
+      }
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark')
@@ -247,7 +276,7 @@ export default function Dashboard() {
                 <SectionHeader label="Resumen del período" />
                 <KPIGrid data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
                 <SectionHeader label="Evolución diaria del mes" />
-                <ChartsSection data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
+                <ChartsSection data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} histCierres={histCierres} />
                 <SectionHeader label="TMS y SN1 por cliente" />
                 <ClientTable clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
               </motion.div>
@@ -267,7 +296,7 @@ export default function Dashboard() {
 
             {activeTab === 'informe' && data && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <ReportView data={data} mes={mes} metaSn1={META_SN1} metaTms={META_TMS} />
+                <ReportView data={data} mes={mes} metaSn1={META_SN1} metaTms={META_TMS} histCierres={histCierres} />
               </motion.div>
             )}
 
