@@ -74,3 +74,47 @@ html.light {
   background-color: hsl(0 0% 98%);
   color: hsl(240 10% 8%);
 }
+
+/* Estilos de impresión — solo el informe */
+@media print {
+  /* Ocultar todo excepto el informe */
+  header, nav, .no-print {
+    display: none !important;
+  }
+  
+  /* Forzar fondo blanco y colores planos */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  html.dark {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 8%;
+    --card: 0 0% 100%;
+    --border: 240 6% 88%;
+    --muted-foreground: 240 4% 42%;
+  }
+  
+  /* Forzar que los colores se impriman */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Cada slide en su propia página */
+  .print-slide {
+    page-break-after: always;
+    break-after: page;
+  }
+  
+  main {
+    padding: 0 !important;
+  }
+  
+  /* Quitar márgenes de página */
+  @page {
+    margin: 1cm;
+    size: A4 landscape;
+  }
+}
