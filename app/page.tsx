@@ -53,8 +53,8 @@ export default function Dashboard() {
     setRefreshing(true)
     setError(null)
     const msgs = [
-      'Conectando con Salesforce...',
-      'Cargando casos del período...',
+      'Buscando cierre guardado...',
+      'Cargando datos del mes...',
       'Calculando métricas TMS...',
       'Procesando datos SN1...',
       'Preparando dashboard...',
@@ -67,9 +67,27 @@ export default function Dashboard() {
     }, 400)
 
     try {
-      const params: Record<string,string> = {}
-      if (mesTarget) params.mes = mesTarget
-      const d = await gasCall('metricas', params)
+      // 1. Intentar primero traer el cierre guardado en Sheets
+      let d: any = null
+      if (mesTarget) {
+        try {
+          const cierreRes = await gasCall('cierre', { mes: mesTarget })
+          if (cierreRes.ok && cierreRes.data) {
+            d = cierreRes.data
+            setLoadMsg('Cierre guardado encontrado')
+          }
+        } catch (e) {
+          // ignorar — caemos al fallback de Salesforce
+        }
+      }
+
+      // 2. Si no hay cierre, consultar Salesforce
+      if (!d) {
+        const params: Record<string,string> = {}
+        if (mesTarget) params.mes = mesTarget
+        d = await gasCall('metricas', params)
+      }
+
       clearInterval(iv)
       setProgress(100)
       setLoadMsg('¡Listo!')
