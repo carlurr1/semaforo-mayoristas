@@ -263,17 +263,30 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       const bgColor = isDark ? '#0a0a0b' : '#ffffff'
 
       const captureEl = async (el: HTMLElement, filename: string) => {
+        const wasDark = document.documentElement.classList.contains('dark')
+        if (wasDark) {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.classList.add('light')
+        }
         window.scrollTo(0, 0)
-        await new Promise(r => setTimeout(r, 500))
+        await new Promise(r => setTimeout(r, 800))
         const opts = {
           scale: 2,
-          backgroundColor: bgColor,
+          backgroundColor: '#ffffff',
           useCORS: true,
           logging: false,
           allowTaint: true,
           foreignObjectRendering: false,
+          onclone: (doc: Document) => {
+            doc.documentElement.classList.remove('dark')
+            doc.documentElement.classList.add('light')
+          }
         }
         const canvas = await h2c(el, opts)
+        if (wasDark) {
+          document.documentElement.classList.remove('light')
+          document.documentElement.classList.add('dark')
+        }
         const a = document.createElement('a')
         a.download = filename
         a.href = canvas.toDataURL('image/png', 1.0)
