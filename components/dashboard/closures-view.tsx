@@ -20,20 +20,13 @@ interface ClosuresViewProps {
 
 // ── Detalle del cierre con gráficas ───────────────────────────
 function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle: any | null }) {
-  // Usar siempre los valores del resumen (KPIs validados del cierre)
-  // y solo tomar serieDia/clientes del detalle
-  const r = { ...detalle, ...selected.resumen }
+  // Priorizar SIEMPRE el detalle completo (tiene sn1=0.55, etc.)
+  // selected.resumen viene de la lista y puede tener valores diferentes
+  const r = detalle || selected.resumen
   const serieDia: any[] = detalle?.serieDia || []
   const clientes: any[] = detalle?.clientes || []
 
-  // DEBUG temporal
   console.log('CIERRE r:', { sn1: r.sn1, sn1s: r.sn1s, tms: r.tms, tmss: r.tmss })
-  console.log('CIERRE selected.resumen:', selected.resumen)
-  console.log('CIERRE detalle:', detalle ? Object.keys(detalle) : null)
-
-  // Si los valores SN1 vienen como porcentaje (>1) usar directo, sino multiplicar por 100
-  const sn1Val  = (r.sn1  || 0) > 1 ? (r.sn1  || 0) : (r.sn1  || 0) * 100
-  const sn1sVal = (r.sn1s || 0) > 1 ? (r.sn1s || 0) : (r.sn1s || 0) * 100
 
   const acum = (() => {
     if (!serieDia.length) return []
@@ -42,8 +35,8 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
         fecha: d.fecha.slice(5),
         tmsCC: r.tms  || 0,
         tmsSC: r.tmss || 0,
-        sn1CC: sn1Val,
-        sn1SC: sn1sVal,
+        sn1CC: (r.sn1  || 0) * 100,
+        sn1SC: (r.sn1s || 0) * 100,
       }
     })
   })()
