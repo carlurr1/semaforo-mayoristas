@@ -109,7 +109,7 @@ export default function Dashboard() {
             const [bm, by] = [mL.indexOf(b.mes.slice(0,3)), parseInt(b.mes.slice(-2))]
             return ay !== by ? ay - by : am - bm
           })
-          .slice(-7) // últimos 7 meses
+          .slice(-6) // últimos 6 meses cerrados
         setHistCierres(hist)
       }
     }).catch(() => {})
