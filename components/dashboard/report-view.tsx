@@ -15,12 +15,12 @@ const META_TMS = 11.5
 
 // Histórico hardcodeado — igual al index.html original
 const HIST_BASE = [
-  { mes: 'Nov 25', tms_sc: 10.0156, tms_cc: 36.2942, sn1_sc: 0.757, sn1_cc: 0.52  },
   { mes: 'Dic 25', tms_sc: 7.7375,  tms_cc: 36.3886, sn1_sc: 0.71,  sn1_cc: 0.465 },
   { mes: 'Ene 26', tms_sc: 9.0875,  tms_cc: 28.1456, sn1_sc: 0.712, sn1_cc: 0.537 },
   { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
   { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
+  { mes: 'May 26', tms_sc: 9.4947, tms_cc: 27.8572, sn1_sc: 0.713,  sn1_cc: 0.557 },
 ]
 
 // Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
@@ -165,9 +165,10 @@ interface ReportViewProps {
   mes: string
   metaSn1: number
   metaTms: number
+  histCierres?: any[]
 }
 
-export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
+export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportViewProps) {
   const slide1Ref = useRef<HTMLDivElement>(null)
   const slide2Ref = useRef<HTMLDivElement>(null)
   const [ajusteOpen, setAjusteOpen] = useState(false)
@@ -191,8 +192,9 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
   const mLabel = mesLabel(mes)
 
-  // Histórico actualizado con mes actual
-  const hist = [...HIST_BASE]
+  // Histórico — usa cierres guardados si están disponibles
+  const base = histCierres && histCierres.length >= 3 ? histCierres : [...HIST_BASE]
+  const hist = [...base]
   const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
   const [yy, mm] = mes.split('-')
   const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
@@ -202,6 +204,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   } else {
     hist.push({ mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 })
   }
+  const histFinal = hist.slice(-7)
 
   // Promedios históricos
   const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
@@ -257,25 +260,42 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
       })
 
       const h2c = (window as any).html2canvas
-      const opts = { scale: 2, backgroundColor: '#0a0a0b', useCORS: true, logging: false }
+      const isDark = document.documentElement.classList.contains('dark')
+      const bgColor = isDark ? '#0a0a0b' : '#ffffff'
+
+      const captureEl = async (el: HTMLElement, filename: string) => {
+        // Scroll al elemento antes de capturar
+        el.scrollIntoView({ behavior: 'instant', block: 'start' })
+        await new Promise(r => setTimeout(r, 300))
+        
+        const rect = el.getBoundingClientRect()
+        const opts = {
+          scale: 2,
+          backgroundColor: bgColor,
+          useCORS: true,
+          logging: false,
+          windowWidth: el.scrollWidth,
+          windowHeight: el.scrollHeight,
+          x: 0,
+          y: 0,
+          scrollX: -window.scrollX,
+          scrollY: -window.scrollY,
+          width: el.offsetWidth,
+          height: el.offsetHeight,
+        }
+        const canvas = await h2c(el, opts)
+        const a = document.createElement('a')
+        a.download = filename
+        a.href = canvas.toDataURL('image/png', 1.0)
+        a.click()
+        await new Promise(r => setTimeout(r, 400))
+      }
+
       const el1 = slide1Ref.current
       const el2 = slide2Ref.current
 
-      if (el1) {
-        const c1 = await h2c(el1, opts)
-        const a1 = document.createElement('a')
-        a1.download = `Informe_Mayoristas_${mesStr}_Slide1.png`
-        a1.href = c1.toDataURL('image/png')
-        a1.click()
-      }
-      if (el2) {
-        await new Promise(r => setTimeout(r, 600))
-        const c2 = await h2c(el2, opts)
-        const a2 = document.createElement('a')
-        a2.download = `Informe_Mayoristas_${mesStr}_Slide2.png`
-        a2.href = c2.toDataURL('image/png')
-        a2.click()
-      }
+      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
     } catch (e) {
       console.error('Error capturando:', e)
       window.print()
