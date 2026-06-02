@@ -28,26 +28,14 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
 
   const acum = (() => {
     if (!serieDia.length) return []
-    let ts=0, tn=0, tss=0, tns=0
-    let sn1h=0, sn1n=0, sn1sh=0, sn1sn=0
-    const hasSN1 = serieDia.some((d: any) => (d.sn1_n || 0) > 0)
     return serieDia.map((d: any) => {
-      tn += d.casos; ts += (d.tms  || 0) * d.casos
-      tns += d.casos; tss += (d.tmss || 0) * d.casos
-      if (hasSN1) {
-        sn1h  += d.sn1_hdp  || 0; sn1n  += d.sn1_n  || 0
-        sn1sh += d.sn1s_hdp || 0; sn1sn += d.sn1s_n || 0
-      } else {
-        // Fallback: usar valor global constante
-        sn1n  += d.casos; sn1h  += Math.round(d.casos * r.sn1)
-        sn1sn += d.casos; sn1sh += Math.round(d.casos * r.sn1s)
-      }
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: tn   > 0 ? ts   / tn   : null,
-        tmsSC: tns  > 0 ? tss  / tns  : null,
-        sn1CC: sn1n  > 0 ? sn1h  / sn1n  * 100 : null,
-        sn1SC: sn1sn > 0 ? sn1sh / sn1sn * 100 : null,
+        // En cierres: mostrar línea plana con los KPIs globales validados
+        tmsCC: r.tms  || 0,
+        tmsSC: r.tmss || 0,
+        sn1CC: (r.sn1  || 0) * 100,
+        sn1SC: (r.sn1s || 0) * 100,
       }
     })
   })()
