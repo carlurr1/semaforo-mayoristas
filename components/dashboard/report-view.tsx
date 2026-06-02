@@ -264,9 +264,25 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       const bgColor = isDark ? '#0a0a0b' : '#ffffff'
 
       const captureEl = async (el: HTMLElement, filename: string) => {
-        // Scroll al elemento antes de capturar
-        el.scrollIntoView({ behavior: 'instant', block: 'start' })
-        await new Promise(r => setTimeout(r, 300))
+        // Scroll al top de la página primero
+        window.scrollTo(0, 0)
+        await new Promise(r => setTimeout(r, 500))
+        
+        const opts = {
+          scale: 2,
+          backgroundColor: isDark ? '#0a0a0b' : '#ffffff',
+          useCORS: true,
+          logging: false,
+          allowTaint: true,
+          foreignObjectRendering: false,
+        }
+        const canvas = await h2c(el, opts)
+        const a = document.createElement('a')
+        a.download = filename
+        a.href = canvas.toDataURL('image/png', 1.0)
+        a.click()
+        await new Promise(r => setTimeout(r, 600))
+      }
         
         const rect = el.getBoundingClientRect()
         const opts = {
