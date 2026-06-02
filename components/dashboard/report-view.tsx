@@ -203,11 +203,11 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const histFinal = hist.slice(-6)
 
   // Promedios históricos
-  const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
-  const avgTmsCc = hist.reduce((s, h) => s + (h.tms_cc || 0), 0) / hist.length
-  const avgSn1Sc = hist.reduce((s, h) => s + (h.sn1_sc || 0), 0) / hist.length
-  const avgSn1Cc = hist.reduce((s, h) => s + (h.sn1_cc || 0), 0) / hist.length
-  const prev = hist.length >= 2 ? hist[hist.length - 2] : null
+  const avgTmsSc = histFinal.reduce((s, h) => s + (h.tms_sc || 0), 0) / histFinal.length
+  const avgTmsCc = histFinal.reduce((s, h) => s + (h.tms_cc || 0), 0) / histFinal.length
+  const avgSn1Sc = histFinal.reduce((s, h) => s + (h.sn1_sc || 0), 0) / histFinal.length
+  const avgSn1Cc = histFinal.reduce((s, h) => s + (h.sn1_cc || 0), 0) / histFinal.length
+  const prev = histFinal.length >= 2 ? histFinal[histFinal.length - 2] : null
 
   function delta(cur: number, prevV: number | undefined, higherBetter: boolean) {
     if (!prev || !prevV) return null
@@ -395,10 +395,10 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
           <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
           <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
-          <InfKPICard label={`Prom TMS s/COFO (${hist.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
-          <InfKPICard label={`Prom TMS c/COFO (${hist.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
-          <InfKPICard label={`Prom SN1 s/COFO (${hist.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
-          <InfKPICard label={`Prom SN1 c/COFO (${hist.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
+          <InfKPICard label={`Prom TMS s/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
+          <InfKPICard label={`Prom TMS c/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${histFinal.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${histFinal.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
         </div>
 
         {/* Top 5 mejor / peor TMS */}
