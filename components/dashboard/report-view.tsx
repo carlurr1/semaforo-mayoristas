@@ -245,8 +245,68 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
   // Descargar imagen (usando browser print como fallback)
-  const handleDownload = () => {
-    window.print()
+  const handleDownload = async () => {
+    setDownloading(true)
+    const mesStr = (mes || 'informe').replace('-', '_')
+    try {
+      // Cargar html2canvas desde CDN igual que en el original
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).html2canvas) { resolve(); return }
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+        script.onload = () => resolve()
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+
+      const h2c = (window as any).html2canvas
+
+      const descargar = (canvas: HTMLCanvasElement, nombre: string) => {
+        const link = document.createElement('a')
+        link.download = nombre
+        link.href = canvas.toDataURL('image/png')
+        link.click()
+      }
+
+      // EXACTO al código original que funcionaba
+      const opts = {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        onclone: (doc: Document) => {
+          // Forzar display block en canvas (Chart.js / Recharts)
+          const canvases = doc.querySelectorAll('canvas')
+          canvases.forEach((c: any) => { c.style.display = 'block' })
+        }
+      }
+
+      setTimeout(async () => {
+        try {
+          const el1 = slide1Ref.current
+          const el2 = slide2Ref.current
+          if (el1) {
+            const c1 = await h2c(el1, opts)
+            descargar(c1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+          }
+          if (el2) {
+            setTimeout(async () => {
+              const c2 = await h2c(el2, opts)
+              descargar(c2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
+              setDownloading(false)
+            }, 500)
+          } else {
+            setDownloading(false)
+          }
+        } catch (e) {
+          console.error('Error capturando:', e)
+          setDownloading(false)
+        }
+      }, 800)
+    } catch (e) {
+      console.error('Error capturando:', e)
+      setDownloading(false)
+    }
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
