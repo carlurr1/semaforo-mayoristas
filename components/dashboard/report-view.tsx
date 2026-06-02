@@ -270,9 +270,25 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       window.scrollTo(0, 0)
       await new Promise(r => setTimeout(r, 800))
 
+      // Inyectar estilos temporales para captura limpia
+      const styleEl = document.createElement('style')
+      styleEl.id = 'capture-styles'
+      styleEl.textContent = `
+        * { outline: none !important; -webkit-tap-highlight-color: transparent !important; }
+        ::-webkit-scrollbar { display: none !important; }
+        .recharts-surface { overflow: visible !important; }
+        button, [role="button"] { outline: none !important; box-shadow: none !important; }
+        div[ref] { outline: none !important; }
+        table { border-collapse: collapse !important; }
+        td, th { outline: none !important; }
+        * { box-shadow: none !important; }
+        .rounded-2xl, .rounded-xl, .rounded-lg { box-shadow: none !important; }
+      `
+      document.head.appendChild(styleEl)
+
       const captureEl = async (el: HTMLElement, filename: string) => {
         el.scrollIntoView({ block: 'start' })
-        await new Promise(r => setTimeout(r, 300))
+        await new Promise(r => setTimeout(r, 500))
 
         const dataUrl = await domtoimage.toPng(el, {
           quality: 1.0,
@@ -284,7 +300,15 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             transformOrigin: 'top left',
             width: el.offsetWidth + 'px',
             height: el.offsetHeight + 'px',
-          }
+          },
+          filter: (node: any) => {
+            // Eliminar elementos que generan outlines/cuadrículas raras
+            if (node.tagName === 'BUTTON') return false
+            return true
+          },
+          // Injectar estilos para quitar outlines y scrollbars
+          imagePlaceholder: undefined,
+          cacheBust: true,
         })
 
         const a = document.createElement('a')
@@ -308,6 +332,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       console.error('Error capturando:', e)
       alert('Error al generar la imagen. Intenta de nuevo.')
     } finally {
+      const s = document.getElementById('capture-styles')
+      if (s) s.remove()
       setDownloading(false)
     }
   }
