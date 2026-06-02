@@ -249,6 +249,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
     setDownloading(true)
     const mesStr = (mes || 'informe').replace('-', '_')
     try {
+      // Cargar html2canvas desde CDN
       await new Promise<void>((resolve, reject) => {
         if ((window as any).html2canvas) { resolve(); return }
         const script = document.createElement('script')
@@ -259,17 +260,48 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       })
 
       const h2c = (window as any).html2canvas
-      const isDark = document.documentElement.classList.contains('dark')
-      const bgColor = isDark ? '#0a0a0b' : '#ffffff'
 
       const captureEl = async (el: HTMLElement, filename: string) => {
-        const wasDark = document.documentElement.classList.contains('dark')
-        if (wasDark) {
-          document.documentElement.classList.remove('dark')
-          document.documentElement.classList.add('light')
+        // Clonar el elemento con estilos computados resueltos
+        const clone = el.cloneNode(true) as HTMLElement
+        
+        // Aplicar todos los estilos computados al clon
+        const applyStyles = (src: Element, dst: Element) => {
+          const computed = window.getComputedStyle(src)
+          const dstEl = dst as HTMLElement
+          dstEl.style.cssText = computed.cssText
+          // Forzar colores explícitos
+          dstEl.style.color = computed.color
+          dstEl.style.backgroundColor = computed.backgroundColor
+          dstEl.style.borderColor = computed.borderColor
+          dstEl.style.fontFamily = computed.fontFamily
+          dstEl.style.fontSize = computed.fontSize
+          dstEl.style.fontWeight = computed.fontWeight
+          dstEl.style.lineHeight = computed.lineHeight
+          dstEl.style.padding = computed.padding
+          dstEl.style.margin = computed.margin
+          dstEl.style.display = computed.display
+          dstEl.style.gap = computed.gap
+          dstEl.style.gridTemplateColumns = computed.gridTemplateColumns
+          dstEl.style.borderRadius = computed.borderRadius
+          dstEl.style.borderLeftWidth = computed.borderLeftWidth
+          dstEl.style.borderLeftColor = computed.borderLeftColor
+          dstEl.style.borderLeftStyle = computed.borderLeftStyle
+          for (let i = 0; i < src.children.length; i++) {
+            applyStyles(src.children[i], dst.children[i])
+          }
         }
-        window.scrollTo(0, 0)
-        await new Promise(r => setTimeout(r, 800))
+        applyStyles(el, clone)
+
+        // Montar en DOM temporalmente
+        clone.style.position = 'fixed'
+        clone.style.top = '0'
+        clone.style.left = '0'
+        clone.style.zIndex = '-9999'
+        clone.style.width = el.offsetWidth + 'px'
+        document.body.appendChild(clone)
+        await new Promise(r => setTimeout(r, 300))
+
         const opts = {
           scale: 2,
           backgroundColor: '#ffffff',
@@ -277,16 +309,12 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           logging: false,
           allowTaint: true,
           foreignObjectRendering: false,
-          onclone: (doc: Document) => {
-            doc.documentElement.classList.remove('dark')
-            doc.documentElement.classList.add('light')
-          }
+          width: el.offsetWidth,
+          height: el.offsetHeight,
         }
-        const canvas = await h2c(el, opts)
-        if (wasDark) {
-          document.documentElement.classList.remove('light')
-          document.documentElement.classList.add('dark')
-        }
+        const canvas = await h2c(clone, opts)
+        document.body.removeChild(clone)
+
         const a = document.createElement('a')
         a.download = filename
         a.href = canvas.toDataURL('image/png', 1.0)
