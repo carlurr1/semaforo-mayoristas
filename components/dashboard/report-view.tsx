@@ -245,89 +245,23 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
   // Descargar imagen (usando browser print como fallback)
-  const handleDownload = async () => {
-    setDownloading(true)
-    const mesStr = (mes || 'informe').replace('-', '_')
-    try {
-      // Cargar html2canvas desde CDN
-      await new Promise<void>((resolve, reject) => {
-        if ((window as any).html2canvas) { resolve(); return }
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
-        script.onload = () => resolve()
-        script.onerror = reject
-        document.head.appendChild(script)
-      })
-
-      const h2c = (window as any).html2canvas
-
-      // Forzar modo claro
-      const wasDark = document.documentElement.classList.contains('dark')
-      if (wasDark) {
-        document.documentElement.classList.remove('dark')
-        document.documentElement.classList.add('light')
-      }
-      window.scrollTo(0, 0)
-      await new Promise(r => setTimeout(r, 500))
-
-      const captureEl = async (el: HTMLElement, filename: string) => {
-        // Asegurar que el elemento sea visible completo
-        const originalWidth = el.style.width
-        const originalMaxWidth = el.style.maxWidth
-        
-        // Forzar ancho fijo grande para captura uniforme
-        el.style.width = '1400px'
-        el.style.maxWidth = '1400px'
-        
-        // Esperar que Recharts re-renderice con el nuevo ancho
-        await new Promise(r => setTimeout(r, 800))
-        
-        // Dispatch resize para forzar a Recharts a recalcular
-        window.dispatchEvent(new Event('resize'))
-        await new Promise(r => setTimeout(r, 400))
-
-        const canvas = await h2c(el, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-          width: el.scrollWidth,
-          height: el.scrollHeight,
-          windowWidth: 1400,
-          onclone: (doc: Document) => {
-            doc.documentElement.classList.remove('dark')
-            doc.documentElement.classList.add('light')
-          }
-        })
-
-        // Restaurar
-        el.style.width = originalWidth
-        el.style.maxWidth = originalMaxWidth
-        window.dispatchEvent(new Event('resize'))
-
-        const link = document.createElement('a')
-        link.download = filename
-        link.href = canvas.toDataURL('image/png', 1.0)
-        link.click()
-        await new Promise(r => setTimeout(r, 600))
-      }
-
-      const el1 = slide1Ref.current
-      const el2 = slide2Ref.current
-      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
-      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
-
-      // Restaurar tema
-      if (wasDark) {
-        document.documentElement.classList.remove('light')
-        document.documentElement.classList.add('dark')
-      }
-    } catch (e) {
-      console.error('Error capturando:', e)
-      alert('Error al generar la imagen. Intenta de nuevo.')
-    } finally {
-      setDownloading(false)
+  const handleDownload = () => {
+    // Forzar modo claro antes de imprimir
+    const wasDark = document.documentElement.classList.contains('dark')
+    if (wasDark) {
+      document.documentElement.classList.remove('dark')
+      document.documentElement.classList.add('light')
     }
+    setTimeout(() => {
+      window.print()
+      // Restaurar tema después de imprimir
+      setTimeout(() => {
+        if (wasDark) {
+          document.documentElement.classList.remove('light')
+          document.documentElement.classList.add('dark')
+        }
+      }, 1000)
+    }, 300)
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
