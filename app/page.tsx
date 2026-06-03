@@ -146,19 +146,34 @@ export default function Dashboard() {
 
   const esCierreActivo = data && (!!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive)
 
-  // Debug: ver primer cliente para entender formato del TMS
-  if (data?.clientes?.length && esCierreActivo) {
-    const enel = data.clientes.find(c => c.nombre?.includes('ENEL')) || data.clientes[0]
-    console.log('DEBUG cliente cierre:', enel)
+  // Si es cierre, los TMS por cliente vienen inflados por bug en _tdToHoras del GAS
+  // Detectar factor de corrección comparando con el TMS global del cierre
+  let factorTms = 1
+  if (esCierreActivo && data?.clientes?.length) {
+    // Calcular TMS promedio actual de los clientes (ponderado por casos)
+    let sumProd = 0, sumCasos = 0
+    data.clientes.forEach(c => {
+      if (c.tms !== null && c.casos > 0) {
+        sumProd  += c.tms * c.casos
+        sumCasos += c.casos
+      }
+    })
+    const tmsClientesProm = sumCasos > 0 ? sumProd / sumCasos : 0
+    // El factor es (lo que tenemos) / (lo que debería ser)
+    if (tmsClientesProm > 0 && data.tms > 0) {
+      factorTms = tmsClientesProm / data.tms
+    }
+    console.log('Factor TMS detectado:', factorTms, 'tmsClientesProm:', tmsClientesProm, 'data.tms:', data.tms)
   }
 
-  // Si es cierre, normalizar TMS si vienen como suma absurda en lugar de promedio
   const clientesNormalizados = !data?.clientes ? [] : data.clientes.map(c => {
-    if (esCierreActivo) {
-      // Si el TMS es absurdamente alto (>100h) y hay varios casos, dividir por casos para obtener el promedio
-      const tmsNorm  = (c.tms  !== null && c.tms  > 100 && c.casos > 1)  ? c.tms  / c.casos    : c.tms
-      const tmssNorm = (c.tmss !== null && c.tmss > 100 && c.tmss_n > 1) ? c.tmss / c.tmss_n   : c.tmss
-      return { ...c, tms: tmsNorm, tmss: tmssNorm }
+    if (esCierreActivo && factorTms > 1.5) {
+      // TMS está inflado por factor → corregir
+      return {
+        ...c,
+        tms:  c.tms  !== null ? c.tms  / factorTms : c.tms,
+        tmss: c.tmss !== null ? c.tmss / factorTms : c.tmss,
+      }
     }
     return c
   })
