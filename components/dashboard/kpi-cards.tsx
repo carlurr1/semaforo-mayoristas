@@ -108,7 +108,9 @@ interface KPIGridProps {
 }
 
 export function KPIGrid({ data, clientes, metaSn1, metaTms }: KPIGridProps) {
-  // Recalcular KPIs con los clientes filtrados
+  const esCierre = !!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive
+
+  // Recalcular KPIs con los clientes filtrados (solo cuando NO es cierre)
   let sn1_hdp = 0, sn1_n = 0, sn1s_hdp = 0, sn1s_n = 0
   let tms_sum = 0, tms_n = 0, tmss_sum = 0, tmss_n = 0
 
@@ -119,10 +121,11 @@ export function KPIGrid({ data, clientes, metaSn1, metaTms }: KPIGridProps) {
     if (c.tmss !== null) { tmss_sum += c.tmss  * c.tmss_n; tmss_n += c.tmss_n }
   })
 
-  const sn1  = sn1_n  > 0 ? sn1_hdp  / sn1_n  : data.sn1
-  const sn1s = sn1s_n > 0 ? sn1s_hdp / sn1s_n : data.sn1s
-  const tms  = tms_n  > 0 ? tms_sum  / tms_n  : data.tms
-  const tmss = tmss_n > 0 ? tmss_sum / tmss_n : data.tmss
+  // Si es cierre, usar valores globales del cierre (que son los validados)
+  const sn1  = esCierre ? data.sn1  : (sn1_n  > 0 ? sn1_hdp  / sn1_n  : data.sn1)
+  const sn1s = esCierre ? data.sn1s : (sn1s_n > 0 ? sn1s_hdp / sn1s_n : data.sn1s)
+  const tms  = esCierre ? data.tms  : (tms_n  > 0 ? tms_sum  / tms_n  : data.tms)
+  const tmss = esCierre ? data.tmss : (tmss_n > 0 ? tmss_sum / tmss_n : data.tmss)
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
