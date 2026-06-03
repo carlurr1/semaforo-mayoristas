@@ -144,12 +144,31 @@ export default function Dashboard() {
 
   const handleLoad = () => cargar(mes)
 
-  const clientesFiltrados = data?.clientes?.filter(c => {
+  const esCierreActivo = data && (!!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive)
+
+  // Debug: ver primer cliente para entender formato del TMS
+  if (data?.clientes?.length && esCierreActivo) {
+    const enel = data.clientes.find(c => c.nombre?.includes('ENEL')) || data.clientes[0]
+    console.log('DEBUG cliente cierre:', enel)
+  }
+
+  // Si es cierre, normalizar TMS si vienen como suma absurda en lugar de promedio
+  const clientesNormalizados = !data?.clientes ? [] : data.clientes.map(c => {
+    if (esCierreActivo) {
+      // Si el TMS es absurdamente alto (>100h) y hay varios casos, dividir por casos para obtener el promedio
+      const tmsNorm  = (c.tms  !== null && c.tms  > 100 && c.casos > 1)  ? c.tms  / c.casos    : c.tms
+      const tmssNorm = (c.tmss !== null && c.tmss > 100 && c.tmss_n > 1) ? c.tmss / c.tmss_n   : c.tmss
+      return { ...c, tms: tmsNorm, tmss: tmssNorm }
+    }
+    return c
+  })
+
+  const clientesFiltrados = clientesNormalizados.filter(c => {
     if (service && c.servicio !== service) return false
     if (tipo    && c.tipo    !== tipo)    return false
     if (cliente && c.nit     !== cliente) return false
     return true
-  }) || []
+  })
 
   return (
     <>
