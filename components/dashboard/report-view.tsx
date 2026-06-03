@@ -25,15 +25,19 @@ const HIST_BASE = [
 
 // Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
 function calcAcumulado(data: MetricasData) {
-  const records = data.bdRecords || []
-  const serieDia = data.serieDia || []
+  const records: any[] = data.bdRecords || []
+  const serieDia: any[] = data.serieDia || []
   if (!serieDia.length) return []
 
-  // Si hay bdRecords, calcular desde ahí (más preciso)
-  if (records.length > 0) {
+  // Detectar si los bdRecords son sintéticos (reconstruidos desde serieDia para cierres históricos)
+  const recordsSinteticos = records.length > 0 && records.every((r: any) => r._agregado)
+  const usarBdReal = records.length > 0 && !recordsSinteticos
+
+  // Rama 1: bdRecords reales (Salesforce vivo) → calcular desde records
+  if (usarBdReal) {
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
     const byFecha: Record<string, DayAcc> = {}
-    records.forEach(r => {
+    records.forEach((r: any) => {
       const f = (r.cierre || '').slice(0, 10)
       if (!f) return
       if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
@@ -46,53 +50,61 @@ function calcAcumulado(data: MetricasData) {
       if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
       if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
     })
-    const hasDates = Object.keys(byFecha).length > 0
-    if (hasDates) {
-      const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
-      return serieDia.map(d => {
-        const f = d.fecha.slice(0, 10)
-        if (byFecha[f]) {
-          const b = byFecha[f]
-          acc.tms_s += b.tms_s; acc.tms_n += b.tms_n
-          acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
-          acc.sn1_n += b.sn1_n; acc.sn1_hdp += b.sn1_hdp
-          acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
-        } else {
-          // día sin registros — usar proporción global para SN1
-          const cas = d.casos
-          acc.tms_n += cas; acc.tms_s += d.tms * cas
-          acc.tmss_n += cas; acc.tmss_s += d.tmss * cas
-          acc.sn1_n += cas; acc.sn1_hdp += Math.round(cas * data.sn1)
-          acc.sn1s_n += cas; acc.sn1s_hdp += Math.round(cas * data.sn1s)
-        }
-        return {
-          fecha: d.fecha.slice(5),
-          tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
-          tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
-          sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
-          sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
-        }
-      })
-    }
+    const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+    return serieDia.map((d: any) => {
+      const f = d.fecha.slice(0, 10)
+      const b = byFecha[f]
+      if (b) {
+        acc.tms_s += b.tms_s; acc.tms_n += b.tms_n
+        acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
+        acc.sn1_n += b.sn1_n; acc.sn1_hdp += b.sn1_hdp
+        acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
+      } else {
+        const cas = d.casos || 0
+        acc.tms_n += cas; acc.tms_s += (d.tms || 0) * cas
+        acc.tmss_n += cas; acc.tmss_s += (d.tmss || 0) * cas
+        acc.sn1_n += cas; acc.sn1_hdp += Math.round(cas * (data.sn1 || 0))
+        acc.sn1s_n += cas; acc.sn1s_hdp += Math.round(cas * (data.sn1s || 0))
+      }
+      return {
+        fecha: d.fecha.slice(5),
+        tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+        tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+        sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+        sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
+      }
+    })
   }
 
-  // Fallback: solo serieDia — TMS desde serie, SN1 con variación simulada desde proporción global
-  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0, total = 0
-  const totalCasos = serieDia.reduce((s, d) => s + d.casos, 0)
-  let hdpAcc = 0, hdpsAcc = 0
-  return serieDia.map(d => {
-    tms_n += d.casos; tms_s += d.tms * d.casos
-    tmss_n += d.casos; tmss_s += d.tmss * d.casos
-    total += d.casos
-    // Distribuir HDP proporcionalmente por día
-    hdpAcc  += Math.round(d.casos * data.sn1)
-    hdpsAcc += Math.round(d.casos * data.sn1s)
+  // Rama 2: usar campos diarios de serieDia (cierres históricos)
+  let tmsAcumS=0, tmsAcumN=0, tmssAcumS=0, tmssAcumN=0
+  let sn1AcumH=0, sn1AcumN=0, sn1sAcumH=0, sn1sAcumN=0
+  return serieDia.map((d: any) => {
+    const dTmsS  = d.tms_s  ?? ((d.tms  || 0) * (d.tms_n  ?? d.casos ?? 0))
+    const dTmsN  = d.tms_n  ?? d.casos ?? 0
+    const dTmssS = d.tmss_s ?? ((d.tmss || 0) * (d.tmss_n ?? d.casos ?? 0))
+    const dTmssN = d.tmss_n ?? d.casos ?? 0
+    tmsAcumS  += dTmsS;  tmsAcumN  += dTmsN
+    tmssAcumS += dTmssS; tmssAcumN += dTmssN
+    // SN1: usar campos diarios si existen; si no, fallback global proporcional
+    if (typeof d.sn1_n === 'number' && typeof d.sn1_hdp === 'number') {
+      sn1AcumH += d.sn1_hdp; sn1AcumN += d.sn1_n
+    } else {
+      const cas = d.casos || 0
+      sn1AcumH += Math.round(cas * (data.sn1 || 0)); sn1AcumN += cas
+    }
+    if (typeof d.sn1s_n === 'number' && typeof d.sn1s_hdp === 'number') {
+      sn1sAcumH += d.sn1s_hdp; sn1sAcumN += d.sn1s_n
+    } else {
+      const cas = d.casos || 0
+      sn1sAcumH += Math.round(cas * (data.sn1s || 0)); sn1sAcumN += cas
+    }
     return {
       fecha: d.fecha.slice(5),
-      tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
-      tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
-      sn1:  total  > 0 ? hdpAcc  / total  * 100 : null,
-      sn1s: total  > 0 ? hdpsAcc / total  * 100 : null,
+      tms:  tmsAcumN  > 0 ? tmsAcumS  / tmsAcumN  : null,
+      tmss: tmssAcumN > 0 ? tmssAcumS / tmssAcumN : null,
+      sn1:  sn1AcumN  > 0 ? sn1AcumH  / sn1AcumN  * 100 : null,
+      sn1s: sn1sAcumN > 0 ? sn1sAcumH / sn1sAcumN * 100 : null,
     }
   })
 }
