@@ -117,6 +117,10 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     const useBD = records.length > 0
     const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
 
+    // Si es cierre, calcular SN1 desde HDP/n (valores 100% confiables)
+    const sn1Cierre  = esCierre && (data as any).sn1_n  > 0 ? ((data as any).sn1_hdp  / (data as any).sn1_n)  * 100 : (data.sn1  || 0) * 100
+    const sn1sCierre = esCierre && (data as any).sn1s_n > 0 ? ((data as any).sn1s_hdp / (data as any).sn1s_n) * 100 : (data.sn1s || 0) * 100
+
     return serieDia.map(d => {
       const f = d.fecha.slice(0, 10)
       const ds = d as any
@@ -138,14 +142,12 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
         acc.sn1_hdp  = Math.round(acc.sn1_n  * data.sn1)
         acc.sn1s_hdp = Math.round(acc.sn1s_n * data.sn1s)
       }
-      // Si los datos vienen de un cierre guardado, mostrar SN1 como línea plana
-      // con los valores globales del cierre (más fiables que recalcular)
       return {
         fecha: d.fecha.slice(5),
         tmsCC: acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
         tmsSC: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
-        sn1CC: esCierre ? (data.sn1  || 0) * 100 : (acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null),
-        sn1SC: esCierre ? (data.sn1s || 0) * 100 : (acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null),
+        sn1CC: esCierre ? sn1Cierre  : (acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null),
+        sn1SC: esCierre ? sn1sCierre : (acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null),
       }
     })
   }, [data])
