@@ -53,6 +53,7 @@ export interface BDRecord {
   cofoSN1: boolean; cofoTMS: boolean; hdp: boolean
   n2: string; n4: string; n5: string; causaImp: string
   propietario: string; servicio: string
+  idServicio?: string
 }
 
 export interface CierreResumen {
