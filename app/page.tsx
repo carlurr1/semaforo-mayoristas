@@ -73,18 +73,13 @@ export default function Dashboard() {
       if (mesTarget) {
         try {
           const cierreRes = await gasCall('cierre', { mes: mesTarget })
-          console.log('>>> Respuesta cierre RAW:', cierreRes)
-          console.log('>>> ok:', cierreRes?.ok, 'tiene data:', !!cierreRes?.data, 'data.sn1:', cierreRes?.data?.sn1)
           if (cierreRes && cierreRes.ok === true && cierreRes.data) {
             d = { ...cierreRes.data, fuenteCierre: true }
             fuenteCierre = true
-            console.log('>>> Cierre cargado. d.sn1:', d.sn1, 'd.fuenteCierre:', d.fuenteCierre)
-            setLoadMsg('Cierre guardado encontrado ✓')
+              setLoadMsg('Cierre guardado encontrado ✓')
           } else {
-            console.log('>>> Cierre NO usable, irá a SF')
-          }
+            }
         } catch (e) {
-          console.log('>>> Error en gasCall cierre:', e)
         }
       }
 
@@ -94,14 +89,12 @@ export default function Dashboard() {
         const params: Record<string,string> = {}
         if (mesTarget) params.mes = mesTarget
         d = await gasCall('metricas', params)
-        console.log('>>> Cargado desde SF, d.sn1:', d.sn1)
-      }
+        }
 
       clearInterval(iv)
       setProgress(100)
       setLoadMsg(fuenteCierre ? '¡Cierre cargado!' : '¡Listo!')
       if (d.ok === false) throw new Error(d.error || 'Sin datos')
-      console.log('>>> ANTES de setData. d.sn1:', d.sn1, 'd.fuenteCierre:', d.fuenteCierre)
       // Forzar nueva referencia para que React detecte el cambio
       setData({ ...d })
     } catch (e: unknown) {
