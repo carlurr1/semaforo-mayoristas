@@ -32,8 +32,6 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
   const tmsFinal  = r.tms  || 0
   const tmssFinal = r.tmss || 0
 
-  console.log('CIERRE valores finales:', { sn1Final, sn1sFinal, tmsFinal, tmssFinal })
-  console.log('CIERRE r:', { sn1: r.sn1, sn1s: r.sn1s, sn1_hdp: r.sn1_hdp, sn1_n: r.sn1_n, sn1s_hdp: r.sn1s_hdp, sn1s_n: r.sn1s_n })
 
   const acum = (() => {
     if (!serieDia.length) return []
