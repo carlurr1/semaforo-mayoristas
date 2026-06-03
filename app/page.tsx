@@ -102,7 +102,8 @@ export default function Dashboard() {
       setLoadMsg(fuenteCierre ? '¡Cierre cargado!' : '¡Listo!')
       if (d.ok === false) throw new Error(d.error || 'Sin datos')
       console.log('>>> ANTES de setData. d.sn1:', d.sn1, 'd.fuenteCierre:', d.fuenteCierre)
-      setData(d)
+      // Forzar nueva referencia para que React detecte el cambio
+      setData({ ...d })
     } catch (e: unknown) {
       clearInterval(iv)
       const msg = e instanceof Error ? e.message : 'Error de conexión'
