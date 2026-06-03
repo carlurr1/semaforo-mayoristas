@@ -86,54 +86,48 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
   const [showSn1CC, setShowSn1CC] = useState(true)
   const [showSn1SC, setShowSn1SC] = useState(true)
 
-  // Acumulado diario — calcula TMS y SN1 desde bdRecords igual que el original
+  // Acumulado diario — siempre evoluciona día a día (incluso para cierres históricos)
   const acumulado = useMemo(() => {
     const records = data.bdRecords || []
     const serieDia = data.serieDia || []
-    // Detectar si los datos vienen de un cierre: tiene mesAnio o fuenteCierre=true
-    const esCierre = !!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive
     if (!serieDia.length) return []
 
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
     const byFecha: Record<string, DayAcc> = {}
 
-    records.forEach(r => {
-      const f = r.cierre?.slice(0, 10) || ''
-      if (!f) return
-      if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
-      const d = byFecha[f]
-      const masRaw = (r.masivo || '').toUpperCase().trim()
-      const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
-      const mTMS = masRaw === 'CORTE DE CABLE'
-      if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
-      if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
-      if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
-      if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
-    })
+    // Detectar si los records son sintéticos (cierres históricos reconstruidos en GAS)
+    const recordsSinteticos = records.length > 0 && records.every((r: any) => r._agregado)
+    const useBD = records.length > 0 && !recordsSinteticos
 
-    // Verificar si serieDia ya trae SN1 diario (nuevo formato del GAS)
-    const hasSN1enSerie = serieDia.some(d => (d as any).sn1_n > 0)
-    const useBD = records.length > 0
-    const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
-
-    // Si es cierre, usar los valores globales directos (más confiables)
-    let sn1Cierre  = 0
-    let sn1sCierre = 0
-    let tmsCierre  = 0
-    let tmssCierre = 0
-    if (esCierre) {
-      sn1Cierre  = (Number(data.sn1)  || 0) * 100
-      sn1sCierre = (Number(data.sn1s) || 0) * 100
-      tmsCierre  = Number(data.tms)  || 0
-      tmssCierre = Number(data.tmss) || 0
+    if (useBD) {
+      records.forEach(r => {
+        const f = r.cierre?.slice(0, 10) || ''
+        if (!f) return
+        if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+        const d = byFecha[f]
+        const masRaw = (r.masivo || '').toUpperCase().trim()
+        const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
+        const mTMS = masRaw === 'CORTE DE CABLE'
+        if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
+        if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
+        if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
+        if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
+      })
     }
+
+    const hasSN1enSerie = serieDia.some(d => (d as any).sn1_n > 0)
+    const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
 
     return serieDia.map(d => {
       const f = d.fecha.slice(0, 10)
       const ds = d as any
       if (hasSN1enSerie) {
-        acc.tms_n  += d.casos; acc.tms_s  += d.tms  * d.casos
-        acc.tmss_n += d.casos; acc.tmss_s += d.tmss * d.casos
+        const dTmsS  = ds.tms_s  ?? ((d.tms  || 0) * (ds.tms_n  ?? d.casos ?? 0))
+        const dTmsN  = ds.tms_n  ?? d.casos ?? 0
+        const dTmssS = ds.tmss_s ?? ((d.tmss || 0) * (ds.tmss_n ?? d.casos ?? 0))
+        const dTmssN = ds.tmss_n ?? d.casos ?? 0
+        acc.tms_s  += dTmsS;  acc.tms_n  += dTmsN
+        acc.tmss_s += dTmssS; acc.tmss_n += dTmssN
         acc.sn1_n  += ds.sn1_n  || 0; acc.sn1_hdp  += ds.sn1_hdp  || 0
         acc.sn1s_n += ds.sn1s_n || 0; acc.sn1s_hdp += ds.sn1s_hdp || 0
       } else if (useBD && byFecha[f]) {
@@ -146,15 +140,15 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
         acc.tms_n  += d.casos; acc.tms_s  += d.tms  * d.casos
         acc.tmss_n += d.casos; acc.tmss_s += d.tmss * d.casos
         acc.sn1_n  += d.casos; acc.sn1s_n += d.casos
-        acc.sn1_hdp  = Math.round(acc.sn1_n  * data.sn1)
-        acc.sn1s_hdp = Math.round(acc.sn1s_n * data.sn1s)
+        acc.sn1_hdp  = Math.round(acc.sn1_n  * (data.sn1  || 0))
+        acc.sn1s_hdp = Math.round(acc.sn1s_n * (data.sn1s || 0))
       }
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: esCierre ? tmsCierre  : (acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null),
-        tmsSC: esCierre ? tmssCierre : (acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null),
-        sn1CC: esCierre ? sn1Cierre  : (acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null),
-        sn1SC: esCierre ? sn1sCierre : (acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null),
+        tmsCC: acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+        tmsSC: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+        sn1CC: acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+        sn1SC: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
       }
     })
   }, [data])
