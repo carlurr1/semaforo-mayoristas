@@ -1,390 +1,162 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { RefreshCw, Download, Activity, Database, Calendar, Camera, Sun, Moon } from 'lucide-react'
-import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel, mesActual } from '@/lib/utils'
-import type { MetricasData, CierreResumen } from '@/lib/gas'
+import { motion } from 'framer-motion'
+import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel } from '@/lib/utils'
+import type { MetricasData, ClienteData } from '@/lib/gas'
+import type { Status } from '@/lib/utils'
 
-import { SplashScreen }   from '@/components/dashboard/splash-screen'
-import { KPIGrid }        from '@/components/dashboard/kpi-cards'
-import { ChartsSection }  from '@/components/dashboard/charts'
-import { ClientTable }    from '@/components/dashboard/client-table'
-import { DatabaseTable }  from '@/components/dashboard/database-table'
-import { ClosuresView }   from '@/components/dashboard/closures-view'
-import { ReportView }     from '@/components/dashboard/report-view'
-
-const META_SN1 = 0.70
-const META_TMS = 11.5
-
-const TABS = [
-  { id: 'dashboard', label: 'Dashboard',     icon: Activity  },
-  { id: 'database',  label: 'BD',            icon: Database  },
-  { id: 'cierres',   label: 'Cierres',       icon: Calendar  },
-  { id: 'informe',   label: 'Informe',       icon: Camera    },
-]
-
-async function gasCall(action: string, params: Record<string,string> = {}) {
-  const url = new URL('/api/gas', window.location.origin)
-  url.searchParams.set('action', action)
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
-  const res = await fetch(url.toString())
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+function statusColors(s: Status) {
+  return {
+    success: 'from-success/10 to-success/5 border-success/20',
+    warning: 'from-warning/10 to-warning/5 border-warning/20',
+    danger:  'from-danger/10  to-danger/5  border-danger/20',
+    neutral: 'from-primary/10 to-primary/5 border-primary/20',
+  }[s]
 }
 
-export default function Dashboard() {
-  const [loading,    setLoading]    = useState(true)
-  const [progress,   setProgress]   = useState(0)
-  const [loadMsg,    setLoadMsg]    = useState('Conectando con Salesforce...')
-  const [activeTab,  setActiveTab]  = useState('dashboard')
-  const [refreshing, setRefreshing] = useState(false)
-  const [mes,        setMes]        = useState(mesActual)
-  const [data,       setData]       = useState<MetricasData | null>(null)
-  const [error,      setError]      = useState<string | null>(null)
-  const [theme,      setTheme]      = useState<'dark'|'light'>('dark')
-  const [histCierres, setHistCierres] = useState<any[]>([])
-  const [service,    setService]    = useState('')
-  const [tipo,       setTipo]       = useState('')
-  const [cliente,    setCliente]    = useState('')
+function statusBar(s: Status) {
+  return {
+    success: 'from-success to-success/40',
+    warning: 'from-warning to-warning/40',
+    danger:  'from-danger  to-danger/40',
+    neutral: 'from-primary to-primary/40',
+  }[s]
+}
 
-  const cargar = useCallback(async (mesParam?: string) => {
-    const mesTarget = mesParam || mes
-    setRefreshing(true)
-    setError(null)
-    const msgs = [
-      'Buscando cierre guardado...',
-      'Cargando datos del mes...',
-      'Calculando métricas TMS...',
-      'Procesando datos SN1...',
-      'Preparando dashboard...',
-    ]
-    let p = 0
-    const iv = setInterval(() => {
-      p = Math.min(p + 15 + Math.random() * 10, 90)
-      setProgress(Math.round(p))
-      setLoadMsg(msgs[Math.min(Math.floor(p / 20), msgs.length - 1)])
-    }, 400)
+function statusBadge(s: Status) {
+  return {
+    success: 'bg-success/15 text-success border-success/30',
+    warning: 'bg-warning/15 text-warning border-warning/30',
+    danger:  'bg-danger/15  text-danger  border-danger/30',
+    neutral: 'bg-primary/15 text-primary border-primary/30',
+  }[s]
+}
 
-    try {
-      // 1. Intentar primero traer el cierre guardado en Sheets
-      let d: any = null
-      let fuenteCierre = false
-      if (mesTarget) {
-        try {
-          const cierreRes = await gasCall('cierre', { mes: mesTarget })
-          if (cierreRes && cierreRes.ok === true && cierreRes.data) {
-            d = { ...cierreRes.data, fuenteCierre: true }
-            fuenteCierre = true
-              setLoadMsg('Cierre guardado encontrado ✓')
-          } else {
-            }
-        } catch (e) {
-        }
-      }
+function statusDot(s: Status) {
+  return {
+    success: 'bg-success animate-pulse',
+    warning: 'bg-warning',
+    danger:  'bg-danger',
+    neutral: 'bg-primary',
+  }[s]
+}
 
-      // 2. Si no hay cierre, consultar Salesforce
-      if (!d) {
-        setLoadMsg('Consultando Salesforce...')
-        const params: Record<string,string> = {}
-        if (mesTarget) params.mes = mesTarget
-        d = await gasCall('metricas', params)
-        }
+interface KPICardProps {
+  label: string
+  value: string
+  subtitle: string
+  status: Status
+  delay?: number
+}
 
-      clearInterval(iv)
-      setProgress(100)
-      setLoadMsg(fuenteCierre ? '¡Cierre cargado!' : '¡Listo!')
-      if (d.ok === false) throw new Error(d.error || 'Sin datos')
-      // Forzar nueva referencia para que React detecte el cambio
-      setData({ ...d })
-    } catch (e: unknown) {
-      clearInterval(iv)
-      const msg = e instanceof Error ? e.message : 'Error de conexión'
-      setError(msg)
-    } finally {
-      setRefreshing(false)
-      setTimeout(() => setLoading(false), 300)
-    }
-  }, [mes])
-
-  useEffect(() => {
-    cargar()
-    // Cargar histórico de cierres para las gráficas de tendencia
-    gasCall('cierres').then(res => {
-      if (res.ok && res.lista?.length) {
-        const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-        const hist = res.lista
-          .filter((c: any) => c.resumen)
-          .map((c: any) => {
-            const [yy, mm] = c.mesAnio.split('-')
-            return {
-              mes: `${meses[parseInt(mm)]} ${yy.slice(2)}`,
-              tms_sc: c.resumen.tmss,
-              tms_cc: c.resumen.tms,
-              sn1_sc: c.resumen.sn1s,
-              sn1_cc: c.resumen.sn1,
-            }
-          })
-          .sort((a: any, b: any) => {
-            const mL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-            const [am, ay] = [mL.indexOf(a.mes.slice(0,3)), parseInt(a.mes.slice(-2))]
-            const [bm, by] = [mL.indexOf(b.mes.slice(0,3)), parseInt(b.mes.slice(-2))]
-            return ay !== by ? ay - by : am - bm
-          })
-          .slice(-6) // últimos 6 meses cerrados
-        setHistCierres(hist)
-      }
-    }).catch(() => {})
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    document.documentElement.classList.toggle('light', theme === 'light')
-  }, [theme])
-
-  const handleLoad = () => cargar(mes)
-
-  const esCierreActivo = data && (!!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive)
-
-  // Debug: ver primer cliente para entender formato del TMS
-  if (data?.clientes?.length && esCierreActivo) {
-    const enel = data.clientes.find(c => c.nombre?.includes('ENEL')) || data.clientes[0]
-    console.log('DEBUG cliente cierre:', enel)
-  }
-
-  // Si es cierre, normalizar TMS si vienen como suma absurda en lugar de promedio
-  const clientesNormalizados = !data?.clientes ? [] : data.clientes.map(c => {
-    if (esCierreActivo) {
-      // Si el TMS es absurdamente alto (>100h) y hay varios casos, dividir por casos para obtener el promedio
-      const tmsNorm  = (c.tms  !== null && c.tms  > 100 && c.casos > 1)  ? c.tms  / c.casos    : c.tms
-      const tmssNorm = (c.tmss !== null && c.tmss > 100 && c.tmss_n > 1) ? c.tmss / c.tmss_n   : c.tmss
-      return { ...c, tms: tmsNorm, tmss: tmssNorm }
-    }
-    return c
-  })
-
-  const clientesFiltrados = clientesNormalizados.filter(c => {
-    if (service && c.servicio !== service) return false
-    if (tipo    && c.tipo    !== tipo)    return false
-    if (cliente && c.nit     !== cliente) return false
-    return true
-  })
-
+function KPICard({ label, value, subtitle, status, delay = 0 }: KPICardProps) {
   return (
-    <>
-      <AnimatePresence>
-        {loading && (
-          <SplashScreen
-            progress={progress}
-            message={loadMsg}
-            error={error}
-            onRetry={() => { setError(null); setLoading(true); cargar() }}
-          />
-        )}
-      </AnimatePresence>
-
-      {!loading && (
-        <div className="min-h-screen bg-background">
-
-          {/* HEADER */}
-          <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
-            <div className="flex h-[60px] items-center justify-between px-4 lg:px-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 border border-primary/30 text-primary font-bold text-sm">
-                  ETB
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-semibold">Semáforo Mayoristas</p>
-                  <p className="text-[10px] text-muted-foreground font-mono">E&G Soporte</p>
-                </div>
-              </div>
-
-              {/* Tabs desktop */}
-              <nav className="hidden md:flex items-center gap-1">
-                {TABS.map(tab => {
-                  const Icon = tab.icon
-                  const active = activeTab === tab.id
-                  return (
-                    <motion.button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      className={cn(
-                        'relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
-                        active ? 'text-foreground bg-accent' : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {tab.label}
-                    </motion.button>
-                  )
-                })}
-              </nav>
-
-              <div className="flex items-center gap-2">
-                {data && (
-                  <span className="hidden sm:inline font-mono text-[10px] text-muted-foreground">
-                    {formatN(data.totalMayoristas)} casos
-                  </span>
-                )}
-                <button
-                  onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
-                  className="flex items-center gap-2 text-xs border border-border bg-accent hover:bg-accent/80 px-3 py-1.5 rounded-lg font-semibold text-muted-foreground transition-colors"
-                  title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                >
-                  {theme === 'dark'
-                    ? <Sun className="h-3.5 w-3.5" />
-                    : <Moon className="h-3.5 w-3.5" />
-                  }
-                </button>
-                <button
-                  onClick={handleLoad}
-                  disabled={refreshing}
-                  className="flex items-center gap-2 text-xs border border-border bg-accent hover:bg-accent/80 px-3 py-1.5 rounded-lg font-semibold text-muted-foreground transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
-                  <span className="hidden sm:inline">Actualizar</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-2 px-4 py-2 lg:px-6 border-t border-border bg-card/40 overflow-x-auto">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Mes</span>
-              <input
-                type="month"
-                value={mes}
-                onChange={e => setMes(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-sm font-mono text-foreground focus:border-primary focus:outline-none"
-              />
-              <button
-                onClick={handleLoad}
-                disabled={refreshing}
-                className="h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
-              >
-                Cargar
-              </button>
-              <div className="h-5 w-px bg-border hidden sm:block" />
-              <select
-                value={service}
-                onChange={e => setService(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none"
-              >
-                <option value="">Servicio</option>
-                <option value="Avanzado">Avanzado</option>
-                <option value="Basico">Basico</option>
-              </select>
-              <select
-                value={tipo}
-                onChange={e => setTipo(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none"
-              >
-                <option value="">Tipo</option>
-                {[...new Set(data?.clientes.map(c => c.tipo) || [])].map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <select
-                value={cliente}
-                onChange={e => setCliente(e.target.value)}
-                className="h-8 rounded-lg border border-border bg-input px-2 text-xs text-foreground focus:border-primary focus:outline-none max-w-[140px]"
-              >
-                <option value="">Cliente</option>
-                {[...(data?.clientes || [])].sort((a,b) => a.nombre.localeCompare(b.nombre)).map(c => (
-                  <option key={c.nit} value={c.nit}>{c.nombre}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => { setService(''); setTipo(''); setCliente('') }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-              >
-                Limpiar
-              </button>
-              <div className="ml-auto">
-                <span className="inline-flex items-center rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-[10px] font-bold text-primary font-mono whitespace-nowrap">
-                  {formatN(data?.totalMayoristas || 0)} casos
-                </span>
-              </div>
-            </div>
-          </header>
-
-          {/* MAIN */}
-          <main className="px-4 py-6 pb-24 lg:px-6 max-w-[1800px] mx-auto">
-
-            {activeTab === 'dashboard' && data && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                <SectionHeader label="Resumen del período" />
-                <KPIGrid data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
-                <SectionHeader label="Evolución diaria del mes" />
-                <ChartsSection data={data} clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} histCierres={histCierres} />
-                <SectionHeader label="TMS y SN1 por cliente" />
-                <ClientTable clientes={clientesFiltrados} metaSn1={META_SN1} metaTms={META_TMS} />
-              </motion.div>
-            )}
-
-            {activeTab === 'database' && data && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <DatabaseTable records={data.bdRecords || []} />
-              </motion.div>
-            )}
-
-            {activeTab === 'cierres' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <ClosuresView mes={mes} onGasCall={gasCall} />
-              </motion.div>
-            )}
-
-            {activeTab === 'informe' && data && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <ReportView data={data} mes={mes} metaSn1={META_SN1} metaTms={META_TMS} histCierres={histCierres} />
-              </motion.div>
-            )}
-
-            {!data && !loading && (
-              <div className="flex flex-col items-center justify-center py-32 gap-4">
-                <p className="text-muted-foreground text-sm">No hay datos cargados.</p>
-                <button onClick={handleLoad} className="text-sm text-primary hover:underline">Cargar datos</button>
-              </div>
-            )}
-          </main>
-
-          {/* NAV MÓVIL — solo visible en pantallas pequeñas */}
-          <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-card/95 backdrop-blur-xl">
-            <div className="flex items-center justify-around h-16 px-2">
-              {TABS.map(tab => {
-                const Icon = tab.icon
-                const active = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all',
-                      active
-                        ? 'text-primary bg-primary/10'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="text-[10px] font-semibold">{tab.label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </nav>
-
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay }}
+      whileHover={{ y: -3, transition: { duration: 0.2 } }}
+      className={cn(
+        'relative overflow-hidden rounded-xl border bg-gradient-to-br p-6 transition-shadow hover:shadow-xl hover:shadow-black/30',
+        statusColors(status)
       )}
-    </>
+    >
+      {/* Top bar */}
+      <motion.div
+        className={cn('absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r', statusBar(status))}
+        initial={{ scaleX: 0, transformOrigin: 'left' }}
+        animate={{ scaleX: 1 }}
+        transition={{ duration: 0.8, delay: delay + 0.2 }}
+      />
+
+      {/* Glow */}
+      <div className="absolute top-0 right-0 h-28 w-28 rounded-full bg-gradient-to-br from-white/5 to-transparent blur-2xl pointer-events-none" />
+
+      <div className="relative">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+
+        <motion.div
+          className="mt-3 font-mono text-3xl font-bold tracking-tight text-foreground"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, delay: delay + 0.3 }}
+        >
+          {value}
+        </motion.div>
+
+        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+
+        <div className={cn(
+          'mt-4 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold',
+          statusBadge(status)
+        )}>
+          <span className={cn('h-1.5 w-1.5 rounded-full', statusDot(status))} />
+          {statusLabel(status)}
+        </div>
+      </div>
+    </motion.div>
   )
 }
 
-function SectionHeader({ label }: { label: string }) {
+interface KPIGridProps {
+  data: MetricasData
+  clientes: ClienteData[]
+  metaSn1: number
+  metaTms: number
+}
+
+export function KPIGrid({ data, clientes, metaSn1, metaTms }: KPIGridProps) {
+  const esCierre = !!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive
+
+  // Recalcular KPIs con los clientes filtrados (solo cuando NO es cierre)
+  let sn1_hdp = 0, sn1_n = 0, sn1s_hdp = 0, sn1s_n = 0
+  let tms_sum = 0, tms_n = 0, tmss_sum = 0, tmss_n = 0
+
+  clientes.forEach(c => {
+    sn1_hdp += c.sn1_hdp; sn1_n += c.sn1_n
+    sn1s_hdp += c.sn1s_hdp; sn1s_n += c.sn1s_n
+    if (c.tms !== null)  { tms_sum  += c.tms  * c.casos;   tms_n  += c.casos   }
+    if (c.tmss !== null) { tmss_sum += c.tmss  * c.tmss_n; tmss_n += c.tmss_n }
+  })
+
+  // Si es cierre, usar valores globales del cierre (que son los validados)
+  const sn1  = esCierre ? data.sn1  : (sn1_n  > 0 ? sn1_hdp  / sn1_n  : data.sn1)
+  const sn1s = esCierre ? data.sn1s : (sn1s_n > 0 ? sn1s_hdp / sn1s_n : data.sn1s)
+  const tms  = esCierre ? data.tms  : (tms_n  > 0 ? tms_sum  / tms_n  : data.tms)
+  const tmss = esCierre ? data.tmss : (tmss_n > 0 ? tmss_sum / tmss_n : data.tmss)
+
   return (
-    <div className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-2">
-      <span>{label}</span>
-      <div className="flex-1 h-px bg-border" />
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <KPICard
+        label="SN1 Con COFO"
+        value={formatPct(sn1)}
+        subtitle={`${formatN(sn1_hdp || data.sn1_hdp)} HDP / ${formatN(sn1_n || data.sn1_n)} casos`}
+        status={sn1Status(sn1, metaSn1)}
+        delay={0}
+      />
+      <KPICard
+        label="SN1 Sin COFO"
+        value={formatPct(sn1s)}
+        subtitle={`${formatN(sn1s_hdp || data.sn1s_hdp)} HDP / ${formatN(sn1s_n || data.sn1s_n)} casos`}
+        status={sn1Status(sn1s, metaSn1)}
+        delay={0.1}
+      />
+      <KPICard
+        label="TMS Con COFO"
+        value={formatHMS(tms)}
+        subtitle={`${formatN(tms_n || data.tms_n)} casos · Meta ${metaTms}h`}
+        status={tmsStatus(tms, metaTms)}
+        delay={0.2}
+      />
+      <KPICard
+        label="TMS Sin COFO"
+        value={formatHMS(tmss)}
+        subtitle={`${formatN(tmss_n || data.tmss_n)} casos · Meta ${metaTms}h`}
+        status={tmsStatus(tmss, metaTms)}
+        delay={0.3}
+      />
     </div>
   )
 }
