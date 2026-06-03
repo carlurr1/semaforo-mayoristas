@@ -235,8 +235,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
   // Top clientes
   const clientes = data.clientes || []
-  const top5best = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (a.tmss || 0) - (b.tmss || 0)).slice(0, 5)
-  const top5worst = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (b.tmss || 0) - (a.tmss || 0)).slice(0, 5)
+  const top5best = [...clientes].filter(c => c.tmss !== null && c.tms_n > 0 && c.casos > 0).sort((a, b) => (a.tmss || 0) - (b.tmss || 0)).slice(0, 5)
+  const top5worst = [...clientes].filter(c => c.tmss !== null && c.tms_n > 0 && c.casos > 0).sort((a, b) => (b.tmss || 0) - (a.tmss || 0)).slice(0, 5)
   const top10 = [...clientes].filter(c => c.casos > 0).sort((a, b) => b.casos - a.casos).slice(0, 10)
 
   // Top causas imputabilidad y tipo falla
