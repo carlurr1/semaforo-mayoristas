@@ -35,13 +35,26 @@ function CierreDetalle({ selected, detalle }: { selected: CierreResumen; detalle
 
   const acum = (() => {
     if (!serieDia.length) return []
+    let tmsAcumS = 0, tmsAcumN = 0
+    let tmssAcumS = 0, tmssAcumN = 0
+    let sn1AcumH = 0, sn1AcumN = 0
+    let sn1sAcumH = 0, sn1sAcumN = 0
     return serieDia.map((d: any) => {
+      // Si el cierre nuevo tiene sumas raw, usarlas; si no, reconstruir desde promedio*n
+      const dTmsS  = d.tms_s  ?? (d.tms  * (d.tms_n  ?? d.casos ?? 0))
+      const dTmsN  = d.tms_n  ?? d.casos ?? 0
+      const dTmssS = d.tmss_s ?? (d.tmss * (d.tmss_n ?? d.casos ?? 0))
+      const dTmssN = d.tmss_n ?? d.casos ?? 0
+      tmsAcumS  += dTmsS;  tmsAcumN  += dTmsN
+      tmssAcumS += dTmssS; tmssAcumN += dTmssN
+      sn1AcumH  += (d.sn1_hdp  || 0); sn1AcumN  += (d.sn1_n  || 0)
+      sn1sAcumH += (d.sn1s_hdp || 0); sn1sAcumN += (d.sn1s_n || 0)
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: tmsFinal,
-        tmsSC: tmssFinal,
-        sn1CC: sn1Final  * 100,
-        sn1SC: sn1sFinal * 100,
+        tmsCC: tmsAcumN  > 0 ? tmsAcumS  / tmsAcumN  : 0,
+        tmsSC: tmssAcumN > 0 ? tmssAcumS / tmssAcumN : 0,
+        sn1CC: sn1AcumN  > 0 ? (sn1AcumH  / sn1AcumN ) * 100 : 0,
+        sn1SC: sn1sAcumN > 0 ? (sn1sAcumH / sn1sAcumN) * 100 : 0,
       }
     })
   })()
