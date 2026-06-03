@@ -119,9 +119,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     // Si es cierre, usar los valores globales directos (más confiables)
     let sn1Cierre  = 0
     let sn1sCierre = 0
+    let tmsCierre  = 0
+    let tmssCierre = 0
     if (esCierre) {
       sn1Cierre  = (Number(data.sn1)  || 0) * 100
       sn1sCierre = (Number(data.sn1s) || 0) * 100
+      tmsCierre  = Number(data.tms)  || 0
+      tmssCierre = Number(data.tmss) || 0
     }
 
     return serieDia.map(d => {
@@ -147,8 +151,8 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
       }
       return {
         fecha: d.fecha.slice(5),
-        tmsCC: acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
-        tmsSC: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+        tmsCC: esCierre ? tmsCierre  : (acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null),
+        tmsSC: esCierre ? tmssCierre : (acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null),
         sn1CC: esCierre ? sn1Cierre  : (acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null),
         sn1SC: esCierre ? sn1sCierre : (acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null),
       }
