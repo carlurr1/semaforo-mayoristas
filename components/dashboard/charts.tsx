@@ -92,7 +92,6 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     const serieDia = data.serieDia || []
     // Detectar si los datos vienen de un cierre: tiene mesAnio o fuenteCierre=true
     const esCierre = !!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive
-    console.log('CHARTS fuenteCierre:', esCierre, 'data.sn1:', data.sn1, 'data.sn1s:', data.sn1s, 'mesAnio:', (data as any).mesAnio)
     if (!serieDia.length) return []
 
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
@@ -117,9 +116,13 @@ export function ChartsSection({ data, clientes, metaSn1, metaTms, histCierres }:
     const useBD = records.length > 0
     const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
 
-    // Si es cierre, calcular SN1 desde HDP/n (valores 100% confiables)
-    const sn1Cierre  = esCierre && (data as any).sn1_n  > 0 ? ((data as any).sn1_hdp  / (data as any).sn1_n)  * 100 : (data.sn1  || 0) * 100
-    const sn1sCierre = esCierre && (data as any).sn1s_n > 0 ? ((data as any).sn1s_hdp / (data as any).sn1s_n) * 100 : (data.sn1s || 0) * 100
+    // Si es cierre, usar los valores globales directos (más confiables)
+    let sn1Cierre  = 0
+    let sn1sCierre = 0
+    if (esCierre) {
+      sn1Cierre  = (Number(data.sn1)  || 0) * 100
+      sn1sCierre = (Number(data.sn1s) || 0) * 100
+    }
 
     return serieDia.map(d => {
       const f = d.fecha.slice(0, 10)
