@@ -146,39 +146,7 @@ export default function Dashboard() {
 
   const esCierreActivo = data && (!!(data as any).fuenteCierre || !!(data as any).mesAnio || !!(data as any).fuenteDrive)
 
-  // Si es cierre, los TMS por cliente vienen inflados por bug en _tdToHoras del GAS
-  // Detectar factor de corrección comparando con el TMS global del cierre
-  let factorTms = 1
-  if (esCierreActivo && data?.clientes?.length) {
-    // Calcular TMS promedio actual de los clientes (ponderado por casos)
-    let sumProd = 0, sumCasos = 0
-    data.clientes.forEach(c => {
-      if (c.tms !== null && c.casos > 0) {
-        sumProd  += c.tms * c.casos
-        sumCasos += c.casos
-      }
-    })
-    const tmsClientesProm = sumCasos > 0 ? sumProd / sumCasos : 0
-    // El factor es (lo que tenemos) / (lo que debería ser)
-    if (tmsClientesProm > 0 && data.tms > 0) {
-      factorTms = tmsClientesProm / data.tms
-    }
-    console.log('Factor TMS detectado:', factorTms, 'tmsClientesProm:', tmsClientesProm, 'data.tms:', data.tms)
-  }
-
-  const clientesNormalizados = !data?.clientes ? [] : data.clientes.map(c => {
-    if (esCierreActivo && factorTms > 1.5) {
-      // TMS está inflado por factor → corregir
-      return {
-        ...c,
-        tms:  c.tms  !== null ? c.tms  / factorTms : c.tms,
-        tmss: c.tmss !== null ? c.tmss / factorTms : c.tmss,
-      }
-    }
-    return c
-  })
-
-  const clientesFiltrados = clientesNormalizados.filter(c => {
+  const clientesFiltrados = (data?.clientes || []).filter(c => {
     if (service && c.servicio !== service) return false
     if (tipo    && c.tipo    !== tipo)    return false
     if (cliente && c.nit     !== cliente) return false
