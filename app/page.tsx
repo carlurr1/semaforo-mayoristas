@@ -42,7 +42,7 @@ export default function Dashboard() {
   const [mes,        setMes]        = useState(mesActual)
   const [data,       setData]       = useState<MetricasData | null>(null)
   const [error,      setError]      = useState<string | null>(null)
-  const [theme,      setTheme]      = useState<'dark'|'light'>('dark')
+  const [theme,      setTheme]      = useState<'dark'|'light'>('light')
   const [histCierres, setHistCierres] = useState<any[]>([])
   const [service,    setService]    = useState('')
   const [tipo,       setTipo]       = useState('')
