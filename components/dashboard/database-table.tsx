@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Download } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -155,6 +155,46 @@ export function DatabaseTable({ records }: DatabaseTableProps) {
     })
   }
 
+  function descargarExcel() {
+    if (!filtered.length) return
+    // Formatear TMS como HH:MM:SS para Excel
+    const fmtTms = (h: number) => {
+      if (!h || h <= 0) return ''
+      const s = Math.round(h * 3600)
+      return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+    }
+    const headers = ['Caso SF', 'Id Legado', 'NIT', 'Cliente', 'ID Servicio', 'Servicio', 'Cierre', 'TMS (h)', 'TMS (HMS)', 'Area Sol.', 'N2', 'N4', 'N5', 'Causa Imputabilidad', 'Masivo', 'COFO SN1', 'COFO TMS', 'HDP', 'Propietario']
+    const escape = (v: any) => {
+      const s = String(v ?? '')
+      if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes(';')) {
+        return '"' + s.replace(/"/g, '""') + '"'
+      }
+      return s
+    }
+    const lines = [headers.map(escape).join(';')]
+    filtered.forEach(r => {
+      lines.push([
+        r.caso, r.idLegado, r.nit, r.cliente, r.idServicio || '', r.servicio,
+        r.cierre, (r.tms || 0).toFixed(4).replace('.', ','), fmtTms(r.tms),
+        r.areaSol, r.n2 || '', r.n4 || '', r.n5 || '', r.causaImp || '',
+        r.masivo || '', r.cofoSN1 ? 'Si' : 'No', r.cofoTMS ? 'Si' : 'No',
+        r.hdp ? 'HDP' : 'Escalado', r.propietario || ''
+      ].map(escape).join(';'))
+    })
+    // BOM UTF-8 para que Excel respete tildes
+    const csv = '\uFEFF' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const mes = filtered[0]?.cierre?.slice(0, 7) || new Date().toISOString().slice(0, 7)
+    a.download = `BD_Mayoristas_${mes}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const reset = () => {
     setSearch(''); setServiceFilter(null); setMassiveFilter(null)
     setCofoFilter(null); setHdpFilter(null); setN4Filter(null); setIdSrvFilter(null); setSortBy(null)
@@ -181,6 +221,17 @@ export function DatabaseTable({ records }: DatabaseTableProps) {
           <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
             {filtered.length}/{records.length}
           </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={descargarExcel}
+            disabled={!filtered.length}
+            className="gap-1.5 text-xs h-9"
+            title="Descargar registros filtrados (CSV — se abre con Excel)"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Excel</span>
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <DropdownMenu>
