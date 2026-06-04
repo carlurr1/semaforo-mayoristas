@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.semaforo_mayoristas.twa",
+        "sha256_cert_fingerprints": ["0E:66:7B:AD:F0:46:B7:E8:B2:45:71:2D:CD:7B:F8:86:81:C4:A7:C4:D9:A8:16:15:D6:E4:B8:28:C5:DB:B7:B0"]
+      }
+    }]
