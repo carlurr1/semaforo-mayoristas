@@ -8,17 +8,17 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'Semáforo Mayoristas ETB',
-  description: 'ETB E&G Soporte — Dashboard Mayoristas',
+  title: 'Indicadores Mayoristas HDP — ETB',
+  description: 'ETB E&G Soporte — Indicadores Mayoristas HDP',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Semáforo ETB',
+    title: 'Indicadores HDP',
   },
   icons: {
     icon: '/icon-192.png',
-    apple: '/icon-192.png',
+    apple: '/apple-touch-icon.png',
   },
 }
 
@@ -41,8 +41,8 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Semáforo ETB" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-title" content="Indicadores HDP" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         {children}
