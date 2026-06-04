@@ -54,8 +54,8 @@ export function SplashScreen({ progress, message, error, onRetry }: SplashScreen
           className="mb-8"
         >
           <div className="relative">
-            <div className="h-20 w-20 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-2xl">
-              <span className="text-2xl font-bold text-white">ETB</span>
+            <div className="h-24 w-24 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center shadow-2xl overflow-hidden">
+              <img src="/icon-512.png" alt="ETB" className="h-20 w-20 object-contain" />
             </div>
             <motion.div
               className="absolute inset-0 rounded-2xl"
@@ -80,7 +80,7 @@ export function SplashScreen({ progress, message, error, onRetry }: SplashScreen
           transition={{ delay: 0.2 }}
           className="text-2xl font-bold text-white mb-2"
         >
-          Semáforo Mayoristas
+          Indicadores Mayoristas HDP
         </motion.h1>
 
         <motion.p
