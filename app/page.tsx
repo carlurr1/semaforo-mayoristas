@@ -173,12 +173,10 @@ export default function Dashboard() {
           <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
             <div className="flex h-[60px] items-center justify-between px-4 lg:px-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 border border-primary/30 text-primary font-bold text-sm">
-                  ETB
-                </div>
+                <img src="/icon-192.png" alt="ETB Indicadores Mayoristas" className="h-10 w-10 rounded-xl object-contain" />
                 <div className="hidden sm:block">
-                  <p className="text-sm font-semibold">Semáforo Mayoristas</p>
-                  <p className="text-[10px] text-muted-foreground font-mono">E&G Soporte</p>
+                  <p className="text-sm font-semibold">Indicadores Mayoristas HDP</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">ETB · E&G Soporte</p>
                 </div>
               </div>
 
