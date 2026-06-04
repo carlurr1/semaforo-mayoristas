@@ -15,25 +15,29 @@ const META_TMS = 11.5
 
 // Histórico hardcodeado — igual al index.html original
 const HIST_BASE = [
-  { mes: 'Nov 25', tms_sc: 10.0156, tms_cc: 36.2942, sn1_sc: 0.757, sn1_cc: 0.52  },
   { mes: 'Dic 25', tms_sc: 7.7375,  tms_cc: 36.3886, sn1_sc: 0.71,  sn1_cc: 0.465 },
   { mes: 'Ene 26', tms_sc: 9.0875,  tms_cc: 28.1456, sn1_sc: 0.712, sn1_cc: 0.537 },
   { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
   { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
+  { mes: 'May 26', tms_sc: 9.4947, tms_cc: 27.8572, sn1_sc: 0.713,  sn1_cc: 0.557 },
 ]
 
 // Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
 function calcAcumulado(data: MetricasData) {
-  const records = data.bdRecords || []
-  const serieDia = data.serieDia || []
+  const records: any[] = data.bdRecords || []
+  const serieDia: any[] = data.serieDia || []
   if (!serieDia.length) return []
 
-  // Si hay bdRecords, calcular desde ahí (más preciso)
-  if (records.length > 0) {
+  // Detectar si los bdRecords son sintéticos (reconstruidos desde serieDia para cierres históricos)
+  const recordsSinteticos = records.length > 0 && records.every((r: any) => r._agregado)
+  const usarBdReal = records.length > 0 && !recordsSinteticos
+
+  // Rama 1: bdRecords reales (Salesforce vivo) → calcular desde records
+  if (usarBdReal) {
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
     const byFecha: Record<string, DayAcc> = {}
-    records.forEach(r => {
+    records.forEach((r: any) => {
       const f = (r.cierre || '').slice(0, 10)
       if (!f) return
       if (!byFecha[f]) byFecha[f] = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
@@ -46,53 +50,61 @@ function calcAcumulado(data: MetricasData) {
       if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
       if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
     })
-    const hasDates = Object.keys(byFecha).length > 0
-    if (hasDates) {
-      const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
-      return serieDia.map(d => {
-        const f = d.fecha.slice(0, 10)
-        if (byFecha[f]) {
-          const b = byFecha[f]
-          acc.tms_s += b.tms_s; acc.tms_n += b.tms_n
-          acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
-          acc.sn1_n += b.sn1_n; acc.sn1_hdp += b.sn1_hdp
-          acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
-        } else {
-          // día sin registros — usar proporción global para SN1
-          const cas = d.casos
-          acc.tms_n += cas; acc.tms_s += d.tms * cas
-          acc.tmss_n += cas; acc.tmss_s += d.tmss * cas
-          acc.sn1_n += cas; acc.sn1_hdp += Math.round(cas * data.sn1)
-          acc.sn1s_n += cas; acc.sn1s_hdp += Math.round(cas * data.sn1s)
-        }
-        return {
-          fecha: d.fecha.slice(5),
-          tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
-          tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
-          sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
-          sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
-        }
-      })
-    }
+    const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
+    return serieDia.map((d: any) => {
+      const f = d.fecha.slice(0, 10)
+      const b = byFecha[f]
+      if (b) {
+        acc.tms_s += b.tms_s; acc.tms_n += b.tms_n
+        acc.tmss_s += b.tmss_s; acc.tmss_n += b.tmss_n
+        acc.sn1_n += b.sn1_n; acc.sn1_hdp += b.sn1_hdp
+        acc.sn1s_n += b.sn1s_n; acc.sn1s_hdp += b.sn1s_hdp
+      } else {
+        const cas = d.casos || 0
+        acc.tms_n += cas; acc.tms_s += (d.tms || 0) * cas
+        acc.tmss_n += cas; acc.tmss_s += (d.tmss || 0) * cas
+        acc.sn1_n += cas; acc.sn1_hdp += Math.round(cas * (data.sn1 || 0))
+        acc.sn1s_n += cas; acc.sn1s_hdp += Math.round(cas * (data.sn1s || 0))
+      }
+      return {
+        fecha: d.fecha.slice(5),
+        tms:  acc.tms_n  > 0 ? acc.tms_s  / acc.tms_n  : null,
+        tmss: acc.tmss_n > 0 ? acc.tmss_s / acc.tmss_n : null,
+        sn1:  acc.sn1_n  > 0 ? acc.sn1_hdp  / acc.sn1_n  * 100 : null,
+        sn1s: acc.sn1s_n > 0 ? acc.sn1s_hdp / acc.sn1s_n * 100 : null,
+      }
+    })
   }
 
-  // Fallback: solo serieDia — TMS desde serie, SN1 con variación simulada desde proporción global
-  let tms_s = 0, tms_n = 0, tmss_s = 0, tmss_n = 0, total = 0
-  const totalCasos = serieDia.reduce((s, d) => s + d.casos, 0)
-  let hdpAcc = 0, hdpsAcc = 0
-  return serieDia.map(d => {
-    tms_n += d.casos; tms_s += d.tms * d.casos
-    tmss_n += d.casos; tmss_s += d.tmss * d.casos
-    total += d.casos
-    // Distribuir HDP proporcionalmente por día
-    hdpAcc  += Math.round(d.casos * data.sn1)
-    hdpsAcc += Math.round(d.casos * data.sn1s)
+  // Rama 2: usar campos diarios de serieDia (cierres históricos)
+  let tmsAcumS=0, tmsAcumN=0, tmssAcumS=0, tmssAcumN=0
+  let sn1AcumH=0, sn1AcumN=0, sn1sAcumH=0, sn1sAcumN=0
+  return serieDia.map((d: any) => {
+    const dTmsS  = d.tms_s  ?? ((d.tms  || 0) * (d.tms_n  ?? d.casos ?? 0))
+    const dTmsN  = d.tms_n  ?? d.casos ?? 0
+    const dTmssS = d.tmss_s ?? ((d.tmss || 0) * (d.tmss_n ?? d.casos ?? 0))
+    const dTmssN = d.tmss_n ?? d.casos ?? 0
+    tmsAcumS  += dTmsS;  tmsAcumN  += dTmsN
+    tmssAcumS += dTmssS; tmssAcumN += dTmssN
+    // SN1: usar campos diarios si existen; si no, fallback global proporcional
+    if (typeof d.sn1_n === 'number' && typeof d.sn1_hdp === 'number') {
+      sn1AcumH += d.sn1_hdp; sn1AcumN += d.sn1_n
+    } else {
+      const cas = d.casos || 0
+      sn1AcumH += Math.round(cas * (data.sn1 || 0)); sn1AcumN += cas
+    }
+    if (typeof d.sn1s_n === 'number' && typeof d.sn1s_hdp === 'number') {
+      sn1sAcumH += d.sn1s_hdp; sn1sAcumN += d.sn1s_n
+    } else {
+      const cas = d.casos || 0
+      sn1sAcumH += Math.round(cas * (data.sn1s || 0)); sn1sAcumN += cas
+    }
     return {
       fecha: d.fecha.slice(5),
-      tms:  tms_n  > 0 ? tms_s  / tms_n  : null,
-      tmss: tmss_n > 0 ? tmss_s / tmss_n : null,
-      sn1:  total  > 0 ? hdpAcc  / total  * 100 : null,
-      sn1s: total  > 0 ? hdpsAcc / total  * 100 : null,
+      tms:  tmsAcumN  > 0 ? tmsAcumS  / tmsAcumN  : null,
+      tmss: tmssAcumN > 0 ? tmssAcumS / tmssAcumN : null,
+      sn1:  sn1AcumN  > 0 ? sn1AcumH  / sn1AcumN  * 100 : null,
+      sn1s: sn1sAcumN > 0 ? sn1sAcumH / sn1sAcumN * 100 : null,
     }
   })
 }
@@ -165,9 +177,10 @@ interface ReportViewProps {
   mes: string
   metaSn1: number
   metaTms: number
+  histCierres?: any[]
 }
 
-export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
+export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportViewProps) {
   const slide1Ref = useRef<HTMLDivElement>(null)
   const slide2Ref = useRef<HTMLDivElement>(null)
   const [ajusteOpen, setAjusteOpen] = useState(false)
@@ -191,24 +204,22 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
   const mLabel = mesLabel(mes)
 
-  // Histórico actualizado con mes actual
-  const hist = [...HIST_BASE]
+  // Histórico — usa cierres guardados si están disponibles
+  const base = histCierres && histCierres.length >= 3 ? histCierres : [...HIST_BASE]
+  const hist = [...base]
   const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
   const [yy, mm] = mes.split('-')
   const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
-  const histIdx = hist.findIndex(h => h.mes === mL)
-  if (histIdx >= 0) {
-    hist[histIdx] = { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
-  } else {
-    hist.push({ mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 })
-  }
+  // El histórico SOLO debe mostrar los meses cerrados (no el mes en curso)
+  // hist ya viene con los cierres guardados o HIST_BASE como fallback
+  const histFinal = hist.slice(-6)
 
   // Promedios históricos
-  const avgTmsSc = hist.reduce((s, h) => s + (h.tms_sc || 0), 0) / hist.length
-  const avgTmsCc = hist.reduce((s, h) => s + (h.tms_cc || 0), 0) / hist.length
-  const avgSn1Sc = hist.reduce((s, h) => s + (h.sn1_sc || 0), 0) / hist.length
-  const avgSn1Cc = hist.reduce((s, h) => s + (h.sn1_cc || 0), 0) / hist.length
-  const prev = hist.length >= 2 ? hist[hist.length - 2] : null
+  const avgTmsSc = histFinal.reduce((s, h) => s + (h.tms_sc || 0), 0) / histFinal.length
+  const avgTmsCc = histFinal.reduce((s, h) => s + (h.tms_cc || 0), 0) / histFinal.length
+  const avgSn1Sc = histFinal.reduce((s, h) => s + (h.sn1_sc || 0), 0) / histFinal.length
+  const avgSn1Cc = histFinal.reduce((s, h) => s + (h.sn1_cc || 0), 0) / histFinal.length
+  const prev = histFinal.length >= 2 ? histFinal[histFinal.length - 2] : null
 
   function delta(cur: number, prevV: number | undefined, higherBetter: boolean) {
     if (!prev || !prevV) return null
@@ -224,8 +235,10 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
   // Top clientes
   const clientes = data.clientes || []
-  const top5best = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (a.tmss || 0) - (b.tmss || 0)).slice(0, 5)
-  const top5worst = [...clientes].filter(c => c.tmss !== null).sort((a, b) => (b.tmss || 0) - (a.tmss || 0)).slice(0, 5)
+  const tmsKey = (c: any) => (c.tmss != null && c.tmss > 0) ? c.tmss : (c.tms || 0)
+  const elegibles = clientes.filter((c: any) => (c.casos || c.tms_n || 0) > 0 && tmsKey(c) > 0)
+  const top5best  = [...elegibles].sort((a: any, b: any) => tmsKey(a) - tmsKey(b)).slice(0, 5)
+  const top5worst = [...elegibles].sort((a: any, b: any) => tmsKey(b) - tmsKey(a)).slice(0, 5)
   const top10 = [...clientes].filter(c => c.casos > 0).sort((a, b) => b.casos - a.casos).slice(0, 10)
 
   // Top causas imputabilidad y tipo falla
@@ -244,10 +257,60 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   // Descargar imagen (usando browser print como fallback)
   const handleDownload = async () => {
     setDownloading(true)
+    const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      window.print()
+      // Cargar html-to-image desde CDN (diferente a html2canvas)
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).htmlToImage) { resolve(); return }
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js'
+        script.onload = () => resolve()
+        script.onerror = reject
+        document.head.appendChild(script)
+      })
+
+      const htmlToImage = (window as any).htmlToImage
+
+      // Forzar modo claro para captura
+      const wasDark = document.documentElement.classList.contains('dark')
+      if (wasDark) {
+        document.documentElement.classList.remove('dark')
+        document.documentElement.classList.add('light')
+      }
+      window.scrollTo(0, 0)
+      await new Promise(r => setTimeout(r, 800))
+
+      const captureEl = async (el: HTMLElement, filename: string) => {
+        // html-to-image maneja mejor SVG (Recharts) que html2canvas
+        const dataUrl = await htmlToImage.toPng(el, {
+          quality: 1.0,
+          backgroundColor: '#ffffff',
+          pixelRatio: 2,
+          cacheBust: true,
+          skipFonts: false,
+        })
+        const link = document.createElement('a')
+        link.download = filename
+        link.href = dataUrl
+        link.click()
+        await new Promise(r => setTimeout(r, 600))
+      }
+
+      const el1 = slide1Ref.current
+      const el2 = slide2Ref.current
+      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
+
+      // Restaurar tema
+      if (wasDark) {
+        document.documentElement.classList.remove('light')
+        document.documentElement.classList.add('dark')
+      }
+    } catch (e) {
+      console.error('Error capturando:', e)
+      alert('Error al generar la imagen: ' + (e as Error).message)
     } finally {
-      setTimeout(() => setDownloading(false), 1000)
+      setDownloading(false)
     }
   }
 
@@ -257,7 +320,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
   return (
     <div className="py-4 space-y-6">
       {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h2 className="text-xl font-bold text-foreground tracking-tight">Informe Semanal — Mayoristas {mLabel}</h2>
           <p className="text-xs text-muted-foreground font-mono mt-1">{mes}</p>
@@ -289,7 +352,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
       {/* Panel ajuste manual */}
       {ajusteOpen && (
-        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5">
+        <div className="rounded-xl border border-warning/20 bg-warning/5 p-5 no-print">
           <p className="text-xs font-bold text-warning mb-4">⚠️ Modo ajuste — estos valores se usan solo para el informe. El dashboard no cambia.</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -322,15 +385,15 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
         </div>
       )}
 
-      {/* ═══ SLIDE 1 ═══ */}
-      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6">
+      {/* ═══ SLIDE 1 — Tailwind premium ═══ */}
+      <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6 print-slide">
 
         {/* Header slide 1 */}
         <div className="flex items-center justify-between pb-5 border-b border-border">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-sm">ETB</div>
+            <img src="/icon-192.png" alt="ETB" className="h-12 w-12 rounded-xl object-contain" />
             <div>
-              <p className="text-lg font-bold text-foreground tracking-tight">Semáforo Mayoristas</p>
+              <p className="text-lg font-bold text-foreground tracking-tight">Indicadores Mayoristas HDP</p>
               <p className="text-xs text-muted-foreground font-mono">ETB E&G Soporte — Customer Operation Success</p>
             </div>
           </div>
@@ -346,10 +409,10 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
           <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
           <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
           <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
-          <InfKPICard label={`Prom TMS s/COFO (${hist.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
-          <InfKPICard label={`Prom TMS c/COFO (${hist.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${hist.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
-          <InfKPICard label={`Prom SN1 s/COFO (${hist.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
-          <InfKPICard label={`Prom SN1 c/COFO (${hist.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${hist.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
+          <InfKPICard label={`Prom TMS s/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
+          <InfKPICard label={`Prom TMS c/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${histFinal.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${histFinal.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
         </div>
 
         {/* Top 5 mejor / peor TMS */}
@@ -363,7 +426,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
               <div style={{ height: 180 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={d.map(c => ({ name: c.nombre.length > 18 ? c.nombre.slice(0, 17) + '…' : c.nombre, tms: +(c.tmss ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(240 6% 15%)" />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                     <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                     <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
                     <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
@@ -388,13 +451,13 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                     <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
                   <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                   <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -409,13 +472,13 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
                   <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                   <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
                   <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} strokeDasharray="5 4" dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -440,7 +503,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
                 <div style={{ height: 150 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(240 6% 15%)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
@@ -457,25 +520,25 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
         {/* Footer slide 1 */}
         <div className="flex justify-between items-center pt-4 border-t border-border">
-          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Indicadores Mayoristas HDP</p>
           <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
 
       {/* Separador */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 no-print">
         <div className="flex-1 h-px bg-border" />
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Diapositiva 2 — Top 10 Clientes</p>
         <div className="flex-1 h-px bg-border" />
       </div>
 
       {/* ═══ SLIDE 2 ═══ */}
-      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5">
+      <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5 print-slide">
 
         {/* Header slide 2 */}
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-xs">ETB</div>
+            <img src="/icon-192.png" alt="ETB" className="h-10 w-10 rounded-xl object-contain" />
             <div>
               <p className="text-sm font-bold text-foreground tracking-tight">Top 10 Clientes Mayoristas</p>
               <p className="text-xs text-muted-foreground mt-0.5">Mes: {mLabel} · Corte: {today}</p>
@@ -525,8 +588,8 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
         </div>
 
         {/* Tabla top 10 clientes — desktop */}
-        <div className="hidden md:block overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-xs">
+        <div className="hidden md:block rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr className="bg-gradient-to-r from-blue-900 to-blue-700">
                 <th className="px-3 py-2.5 text-white font-bold text-center" rowSpan={2}>Cliente</th>
@@ -611,7 +674,7 @@ export function ReportView({ data, mes, metaSn1, metaTms }: ReportViewProps) {
 
         {/* Footer slide 2 */}
         <div className="flex justify-between items-center pt-4 border-t border-border">
-          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Indicadores Mayoristas HDP</p>
           <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
