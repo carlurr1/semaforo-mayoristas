@@ -1,12 +1,19 @@
 {
+  "id": "/",
   "name": "Indicadores Mayoristas HDP — ETB",
   "short_name": "Indicadores HDP",
-  "description": "ETB E&G Soporte — Indicadores Mayoristas HDP",
+  "description": "ETB E&G Soporte — Dashboard de indicadores SN1 y TMS para clientes Mayoristas",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0b",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#ffffff",
   "theme_color": "#4f8ef7",
   "orientation": "portrait-primary",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -31,6 +38,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Ver indicadores SN1 y TMS del mes",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
