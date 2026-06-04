@@ -330,6 +330,14 @@ export default function Dashboard() {
             )}
           </main>
 
+          {/* FOOTER */}
+          <footer className="border-t border-border bg-card/30 py-4 px-4 lg:px-6 pb-20 md:pb-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-1 text-[10px] text-muted-foreground">
+              <p className="font-mono">Developed by <span className="font-semibold text-foreground">Carlos Urrego</span> · 2026</p>
+              <p className="font-mono">Versión 1.0.2</p>
+            </div>
+          </footer>
+
           {/* NAV MÓVIL — solo visible en pantallas pequeñas */}
           <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border bg-card/95 backdrop-blur-xl">
             <div className="flex items-center justify-around h-16 px-2">
