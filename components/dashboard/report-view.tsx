@@ -463,7 +463,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             </div>
             <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 18, right: 40, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 18, right: 65, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -524,7 +524,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             </div>
             <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 18, right: 40, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 18, right: 55, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -580,23 +580,56 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               sc: isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
+            const lastIdx = chartData.length - 1
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 180 }}>
+                <div style={{ height: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 18, right: 20, left: 0, bottom: 0 }}>
+                    <LineChart data={chartData} margin={{ top: 14, right: 14, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
-                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
+                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
-                      <ReferenceLine y={meta} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }}>
-                        <LabelList dataKey="sc" position="top" formatter={fmt} style={{ fontSize: 9, fill: 'hsl(142 71% 45%)', fontWeight: 700 }} />
-                      </Line>
-                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }}>
-                        <LabelList dataKey="cc" position="bottom" formatter={fmt} style={{ fontSize: 9, fill: 'hsl(217 91% 65%)', fontWeight: 700 }} />
-                      </Line>
+                      <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: fmt(meta), position: 'insideTopRight', fontSize: 8, fill: '#ef4444' }} />
+                      <Line
+                        type="monotone" dataKey="sc" name="Sin COFO"
+                        stroke="hsl(142 71% 45%)" strokeWidth={2}
+                        dot={(props: any) => {
+                          const { cx, cy, index } = props
+                          return <circle key={index} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} />
+                        }}
+                        label={(props: any) => {
+                          const { x, y, index, value } = props
+                          if (value == null) return null
+                          const isLast = index === lastIdx
+                          return (
+                            <text key={index} x={x} y={y - 8} fontSize={isLast ? 10 : 8} fill="hsl(142 71% 45%)"
+                              fontWeight={isLast ? 800 : 600} textAnchor="middle"
+                              opacity={isLast ? 1 : 0.8}
+                            >{fmt(value)}</text>
+                          )
+                        }}
+                      />
+                      <Line
+                        type="monotone" dataKey="cc" name="Con COFO"
+                        stroke="hsl(217 91% 65%)" strokeWidth={2}
+                        dot={(props: any) => {
+                          const { cx, cy, index } = props
+                          return <circle key={index} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} />
+                        }}
+                        label={(props: any) => {
+                          const { x, y, index, value } = props
+                          if (value == null) return null
+                          const isLast = index === lastIdx
+                          return (
+                            <text key={index} x={x} y={y + 18} fontSize={isLast ? 10 : 8} fill="hsl(217 91% 65%)"
+                              fontWeight={isLast ? 800 : 600} textAnchor="middle"
+                              opacity={isLast ? 1 : 0.8}
+                            >{fmt(value)}</text>
+                          )
+                        }}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
