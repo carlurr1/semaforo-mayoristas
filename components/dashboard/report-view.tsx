@@ -294,8 +294,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   // Acumulado ajustado — aplica el factor del ajuste manual escalando todos los puntos
   // proporcionalmente al ratio entre el valor ajustado y el último punto real
   const acumAjustado = (() => {
-    if (!acumAjustado.length) return acum
-    const last = acum[acumAjustado.length - 1]
+    if (!acum.length) return acum
+    const last = acum[acum.length - 1]
     // Factores de escala: ajustado / real (si no hay ajuste, factor = 1)
     const factorTmsCc  = (last.tms  != null && last.tms  > 0 && tms  !== data.tms)  ? tms  / last.tms  : 1
     const factorTmsSc  = (last.tmss != null && last.tmss > 0 && tmss !== data.tmss) ? tmss / last.tmss : 1
