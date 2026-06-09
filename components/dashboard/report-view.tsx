@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Legend, Cell, LabelList
+  ReferenceLine, Legend, Cell
 } from 'recharts'
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel } from '@/lib/utils'
 import type { MetricasData, ClienteData, BDRecord, SerieDia } from '@/lib/gas'
@@ -20,20 +20,18 @@ const HIST_BASE = [
   { mes: 'Feb 26', tms_sc: 8.7333,  tms_cc: 35.4706, sn1_sc: 0.777, sn1_cc: 0.49  },
   { mes: 'Mar 26', tms_sc: 8.7269,  tms_cc: 26.1744, sn1_sc: 0.788, sn1_cc: 0.517 },
   { mes: 'Abr 26', tms_sc: 9.7514,  tms_cc: 28.3022, sn1_sc: 0.791, sn1_cc: 0.559 },
-  { mes: 'May 26', tms_sc: 9.4947, tms_cc: 27.8572, sn1_sc: 0.713,  sn1_cc: 0.557 },
+  { mes: 'May 26', tms_sc: 9.4947,  tms_cc: 27.8572, sn1_sc: 0.713, sn1_cc: 0.557 },
 ]
 
-// Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
+// Calcular acumulado diario
 function calcAcumulado(data: MetricasData) {
   const records: any[] = data.bdRecords || []
   const serieDia: any[] = data.serieDia || []
   if (!serieDia.length) return []
 
-  // Detectar si los bdRecords son sintéticos (reconstruidos desde serieDia para cierres históricos)
   const recordsSinteticos = records.length > 0 && records.every((r: any) => r._agregado)
   const usarBdReal = records.length > 0 && !recordsSinteticos
 
-  // Rama 1: bdRecords reales (Salesforce vivo) → calcular desde records
   if (usarBdReal) {
     type DayAcc = { tms_s:number; tms_n:number; tmss_s:number; tmss_n:number; sn1_n:number; sn1_hdp:number; sn1s_n:number; sn1s_hdp:number }
     const byFecha: Record<string, DayAcc> = {}
@@ -45,9 +43,9 @@ function calcAcumulado(data: MetricasData) {
       const masRaw = (r.masivo || '').toUpperCase().trim()
       const mSN1 = masRaw !== '' && masRaw !== 'SIN FALLA MASIVA' && masRaw !== 'NONE'
       const mTMS = masRaw === 'CORTE DE CABLE'
-      if (!mSN1)               { d.sn1_n++;  if (r.hdp) d.sn1_hdp++ }
+      if (!mSN1) { d.sn1_n++; if (r.hdp) d.sn1_hdp++ }
       if (!mSN1 && !r.cofoSN1) { d.sn1s_n++; if (r.hdp) d.sn1s_hdp++ }
-      if (!mTMS)               { d.tms_n++;  d.tms_s  += r.tms }
+      if (!mTMS) { d.tms_n++; d.tms_s += r.tms }
       if (!mTMS && !r.cofoTMS) { d.tmss_n++; d.tmss_s += r.tms }
     })
     const acc = { tms_s:0, tms_n:0, tmss_s:0, tmss_n:0, sn1_n:0, sn1_hdp:0, sn1s_n:0, sn1s_hdp:0 }
@@ -76,7 +74,6 @@ function calcAcumulado(data: MetricasData) {
     })
   }
 
-  // Rama 2: usar campos diarios de serieDia (cierres históricos)
   let tmsAcumS=0, tmsAcumN=0, tmssAcumS=0, tmssAcumN=0
   let sn1AcumH=0, sn1AcumN=0, sn1sAcumH=0, sn1sAcumN=0
   return serieDia.map((d: any) => {
@@ -86,7 +83,6 @@ function calcAcumulado(data: MetricasData) {
     const dTmssN = d.tmss_n ?? d.casos ?? 0
     tmsAcumS  += dTmsS;  tmsAcumN  += dTmsN
     tmssAcumS += dTmssS; tmssAcumN += dTmssN
-    // SN1: usar campos diarios si existen; si no, fallback global proporcional
     if (typeof d.sn1_n === 'number' && typeof d.sn1_hdp === 'number') {
       sn1AcumH += d.sn1_hdp; sn1AcumN += d.sn1_n
     } else {
@@ -109,48 +105,6 @@ function calcAcumulado(data: MetricasData) {
   })
 }
 
-// ── Label pill SVG ─────────────────────────────────────────────────────────
-// Fabrica un componente de label para Recharts con pill de fondo.
-// color: color del texto | bg: color del fondo | offset: desplazamiento Y
-// lastIdx: índice del último punto — solo ese lleva pill, los demás texto simple
-function makePillLabel(color: string, bg: string, offsetUp: number, lastIdx: number, fmt: (v: number) => string) {
-  return function PillLabelComp(props: any) {
-    const { x, y, index, value } = props
-    if (value == null) return <g key={`pl-${index}`} />
-    const txt = fmt(value)
-    const isLast = index === lastIdx
-    const w = txt.length * 6 + 12
-    const py = offsetUp < 0 ? y + offsetUp - 12 : y + offsetUp + 2
-    return (
-      <g key={`pl-${index}`}>
-        <rect x={x - w / 2} y={py} width={w} height={16} rx={5} fill={bg} opacity={isLast ? 1 : 0.72} />
-        <text x={x} y={py + 11} fontSize={isLast ? 10 : 8.5} fill={color} fontWeight={isLast ? 800 : 700} textAnchor="middle">{txt}</text>
-      </g>
-    )
-  }
-}
-
-// Componente de label para el último punto de un AreaChart (solo ese punto)
-// anchorTop=true → pill pegado al tope del chart; false → pegado al fondo
-function makeEndLabel(color: string, bg: string, anchorTop: boolean, fmt: (v: number) => string, totalLen: number) {
-  return function EndLabelComp(props: any) {
-    const { x, y, index, value, viewBox } = props
-    if (index !== totalLen - 1 || value == null) return <g key={`el-${index}`} />
-    const txt = fmt(value)
-    const w = txt.length * 6 + 14
-    // Posición Y completamente fija: arriba=10px desde top del chart, abajo=cerca del fondo
-    const chartTop = viewBox?.y ?? 0
-    const chartH   = viewBox?.height ?? 160
-    const py = anchorTop ? chartTop + 4 : chartTop + chartH - 20
-    return (
-      <g key={`el-${index}`}>
-        <rect x={x + 8} y={py} width={w} height={16} rx={5} fill={bg} />
-        <text x={x + 8 + w / 2} y={py + 11} fontSize={9.5} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
-      </g>
-    )
-  }
-}
-
 // Tooltip oscuro
 const DarkTooltip = ({ active, payload, label, formatter }: any) => {
   if (!active || !payload?.length) return null
@@ -171,7 +125,7 @@ function StatusBadge({ status }: { status: ReturnType<typeof sn1Status> }) {
   const colors = {
     success: 'bg-success/15 text-success border-success/30',
     warning: 'bg-warning/15 text-warning border-warning/30',
-    danger:  'bg-danger/15 text-danger border-danger/30',
+    danger:  'bg-danger/15  text-danger  border-danger/30',
     neutral: 'bg-primary/15 text-primary border-primary/30',
   }
   const dots = {
@@ -192,18 +146,8 @@ function StatusBadge({ status }: { status: ReturnType<typeof sn1Status> }) {
 function InfKPICard({ label, value, sub, status }: {
   label: string; value: string; sub: string; status: ReturnType<typeof sn1Status>
 }) {
-  const borderColors = {
-    success: 'border-l-success',
-    warning: 'border-l-warning',
-    danger:  'border-l-danger',
-    neutral: 'border-l-primary',
-  }
-  const valColors = {
-    success: 'text-success',
-    warning: 'text-warning',
-    danger:  'text-danger',
-    neutral: 'text-primary',
-  }
+  const borderColors = { success: 'border-l-success', warning: 'border-l-warning', danger: 'border-l-danger', neutral: 'border-l-primary' }
+  const valColors    = { success: 'text-success',     warning: 'text-warning',     danger: 'text-danger',     neutral: 'text-primary'  }
   return (
     <div className={cn('rounded-xl border border-border border-l-4 bg-card p-4', borderColors[status])}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">{label}</p>
@@ -231,13 +175,10 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const [ajTmsCc, setAjTmsCc] = useState('')
   const [ajTmsSc, setAjTmsSc] = useState('')
   const [downloading, setDownloading] = useState(false)
-  // Toggles vista acumulado
-  const [acumTmsView, setAcumTmsView] = useState<'both'|'cc'|'sc'>('both')
-  const [acumSn1View, setAcumSn1View] = useState<'both'|'cc'|'sc'>('both')
 
-  // Datos con ajuste manual aplicado
   const sn1  = ajSn1Cc ? parseFloat(ajSn1Cc) / 100 : data.sn1
   const sn1s = ajSn1Sc ? parseFloat(ajSn1Sc) / 100 : data.sn1s
+
   function parseHMS(s: string) {
     if (!s) return null
     const p = s.split(':')
@@ -249,68 +190,16 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
   const mLabel = mesLabel(mes)
 
-  // Histórico — usa cierres guardados si están disponibles
   const base = histCierres && histCierres.length >= 3 ? histCierres : [...HIST_BASE]
   const hist = [...base]
-  const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  const [yy, mm] = mes.split('-')
-  const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
   const histFinal = hist.slice(-6)
 
-  // Histórico + mes actual con valores ajustados (para las gráficas de tendencia)
-  // Excluimos del hist cualquier entrada que tenga el mismo label que el mes actual (para no duplicar)
-  const histSinActual = hist.filter((h: any) => h.mes !== mL)
-  const entradaActual: Record<string, any> = {
-    mes:    mL,
-    tms_sc: tmss,   // Sin COFO → tmss
-    tms_cc: tms,    // Con COFO → tms
-    sn1_sc: sn1s,   // Sin COFO → sn1s (fracción 0-1)
-    sn1_cc: sn1,    // Con COFO → sn1  (fracción 0-1)
-  }
-  const histConActual: Record<string, any>[] = [
-    ...histSinActual.slice(-5).map((h: any) => ({ ...h })),
-    entradaActual,
-  ]
-
-  // Promedios históricos
   const avgTmsSc = histFinal.reduce((s, h) => s + (h.tms_sc || 0), 0) / histFinal.length
   const avgTmsCc = histFinal.reduce((s, h) => s + (h.tms_cc || 0), 0) / histFinal.length
   const avgSn1Sc = histFinal.reduce((s, h) => s + (h.sn1_sc || 0), 0) / histFinal.length
   const avgSn1Cc = histFinal.reduce((s, h) => s + (h.sn1_cc || 0), 0) / histFinal.length
-  const prev = histFinal.length >= 2 ? histFinal[histFinal.length - 2] : null
 
-  function delta(cur: number, prevV: number | undefined, higherBetter: boolean) {
-    if (!prev || !prevV) return null
-    const dv = cur - prevV
-    const pct = Math.abs(dv / prevV * 100).toFixed(1)
-    const up = dv > 0
-    const good = higherBetter ? up : !up
-    return { txt: `${up ? '↑' : '↓'} ${pct}%`, good }
-  }
-
-  // Acumulado diario
   const acum = calcAcumulado(data)
-
-  // Acumulado ajustado — aplica el factor del ajuste manual escalando todos los puntos
-  // proporcionalmente al ratio entre el valor ajustado y el último punto real
-  const acumAjustado = (() => {
-    if (!acum.length) return acum
-    const last = acum[acum.length - 1]
-    // Factores de escala: ajustado / real (si no hay ajuste, factor = 1)
-    const factorTmsCc  = (last.tms  != null && last.tms  > 0 && tms  !== data.tms)  ? tms  / last.tms  : 1
-    const factorTmsSc  = (last.tmss != null && last.tmss > 0 && tmss !== data.tmss) ? tmss / last.tmss : 1
-    const factorSn1Cc  = (last.sn1  != null && last.sn1  > 0 && sn1  !== data.sn1)  ? (sn1  * 100) / last.sn1  : 1
-    const factorSn1Sc  = (last.sn1s != null && last.sn1s > 0 && sn1s !== data.sn1s) ? (sn1s * 100) / last.sn1s : 1
-    // Si no hay ajuste en ninguno, devolver el acum original
-    if (factorTmsCc === 1 && factorTmsSc === 1 && factorSn1Cc === 1 && factorSn1Sc === 1) return acum
-    return acum.map(p => ({
-      ...p,
-      tms:  p.tms  != null ? p.tms  * factorTmsCc  : null,
-      tmss: p.tmss != null ? p.tmss * factorTmsSc  : null,
-      sn1:  p.sn1  != null ? p.sn1  * factorSn1Cc  : null,
-      sn1s: p.sn1s != null ? p.sn1s * factorSn1Sc  : null,
-    }))
-  })()
 
   // Top clientes
   const clientes = data.clientes || []
@@ -320,7 +209,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top5worst = [...elegibles].sort((a: any, b: any) => tmsKey(b) - tmsKey(a)).slice(0, 5)
   const top10 = [...clientes].filter(c => c.casos > 0).sort((a, b) => b.casos - a.casos).slice(0, 10)
 
-  // Top causas imputabilidad y tipo falla
+  // Top causas / fallas
   const records = data.bdRecords || []
   const causaMap: Record<string, number> = {}
   const fallaMap: Record<string, number> = {}
@@ -333,12 +222,11 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const top3causas = Object.entries(causaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
   const top3fallas = Object.entries(fallaMap).sort((a, b) => b[1] - a[1]).slice(0, 3)
 
-  // Descargar imagen (usando browser print como fallback)
+  // Descargar imagen
   const handleDownload = async () => {
     setDownloading(true)
     const mesStr = (mes || 'informe').replace('-', '_')
     try {
-      // Cargar html-to-image desde CDN (diferente a html2canvas)
       await new Promise<void>((resolve, reject) => {
         if ((window as any).htmlToImage) { resolve(); return }
         const script = document.createElement('script')
@@ -347,10 +235,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         script.onerror = reject
         document.head.appendChild(script)
       })
-
       const htmlToImage = (window as any).htmlToImage
-
-      // Forzar modo claro para captura
       const wasDark = document.documentElement.classList.contains('dark')
       if (wasDark) {
         document.documentElement.classList.remove('dark')
@@ -358,9 +243,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
       }
       window.scrollTo(0, 0)
       await new Promise(r => setTimeout(r, 800))
-
       const captureEl = async (el: HTMLElement, filename: string) => {
-        // html-to-image maneja mejor SVG (Recharts) que html2canvas
         const dataUrl = await htmlToImage.toPng(el, {
           quality: 1.0,
           backgroundColor: '#ffffff',
@@ -374,13 +257,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         link.click()
         await new Promise(r => setTimeout(r, 600))
       }
-
-      const el1 = slide1Ref.current
-      const el2 = slide2Ref.current
-      if (el1) await captureEl(el1, `Informe_Mayoristas_${mesStr}_Slide1.png`)
-      if (el2) await captureEl(el2, `Informe_Mayoristas_${mesStr}_Slide2.png`)
-
-      // Restaurar tema
+      if (slide1Ref.current) await captureEl(slide1Ref.current, `Informe_Mayoristas_${mesStr}_Slide1.png`)
+      if (slide2Ref.current) await captureEl(slide2Ref.current, `Informe_Mayoristas_${mesStr}_Slide2.png`)
       if (wasDark) {
         document.documentElement.classList.remove('light')
         document.documentElement.classList.add('dark')
@@ -394,11 +272,17 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   }
 
   const today = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
-  const now = new Date().toLocaleString('es-CO')
+  const now   = new Date().toLocaleString('es-CO')
+
+  // Colores reutilizables para los charts
+  const BLUE  = 'hsl(217 91% 65%)'
+  const GREEN = 'hsl(142 71% 45%)'
+  const RED   = '#ff4444'
 
   return (
     <div className="py-4 space-y-6">
-      {/* Toolbar */}
+
+      {/* ── Toolbar ── */}
       <div className="flex items-center justify-between flex-wrap gap-3 no-print">
         <div>
           <h2 className="text-xl font-bold text-foreground tracking-tight">Informe Semanal — Mayoristas {mLabel}</h2>
@@ -429,24 +313,21 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
       </div>
 
-      {/* Panel ajuste manual */}
+      {/* ── Panel ajuste manual ── */}
       {ajusteOpen && (
         <div className="rounded-xl border border-warning/20 bg-warning/5 p-5 no-print">
           <p className="text-xs font-bold text-warning mb-4">⚠️ Modo ajuste — estos valores se usan solo para el informe. El dashboard no cambia.</p>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'SN1 Con COFO (%)', val: ajSn1Cc, set: setAjSn1Cc, ph: '55.9' },
-              { label: 'SN1 Sin COFO (%)', val: ajSn1Sc, set: setAjSn1Sc, ph: '77.7' },
-              { label: 'TMS Con COFO (HH:MM:SS)', val: ajTmsCc, set: setAjTmsCc, ph: '28:18:08' },
-              { label: 'TMS Sin COFO (HH:MM:SS)', val: ajTmsSc, set: setAjTmsSc, ph: '09:45:04' },
+              { label: 'SN1 Con COFO (%)',       val: ajSn1Cc, set: setAjSn1Cc, ph: '55.9'    },
+              { label: 'SN1 Sin COFO (%)',       val: ajSn1Sc, set: setAjSn1Sc, ph: '77.7'    },
+              { label: 'TMS Con COFO (HH:MM:SS)',val: ajTmsCc, set: setAjTmsCc, ph: '28:18:08' },
+              { label: 'TMS Sin COFO (HH:MM:SS)',val: ajTmsSc, set: setAjTmsSc, ph: '09:45:04' },
             ].map(f => (
               <div key={f.label}>
                 <label className="text-[10px] font-semibold text-muted-foreground block mb-1">{f.label}</label>
                 <input
-                  type="text"
-                  value={f.val}
-                  onChange={e => f.set(e.target.value)}
-                  placeholder={f.ph}
+                  type="text" value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph}
                   className="w-full h-9 rounded-lg border border-warning/30 bg-input px-3 font-mono text-sm text-foreground outline-none focus:border-warning"
                 />
               </div>
@@ -464,10 +345,12 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
       )}
 
-      {/* ═══ SLIDE 1 — Tailwind premium ═══ */}
+      {/* ══════════════════════════════════════════
+          SLIDE 1
+      ══════════════════════════════════════════ */}
       <div ref={slide1Ref} className="rounded-2xl border border-border bg-card p-7 space-y-6 print-slide">
 
-        {/* Header slide 1 */}
+        {/* Header */}
         <div className="flex items-center justify-between pb-5 border-b border-border">
           <div className="flex items-center gap-4">
             <img src="/icon-192.png" alt="ETB" className="h-12 w-12 rounded-xl object-contain" />
@@ -484,223 +367,169 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
         {/* 8 KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <InfKPICard label="SN1 Con COFO"    value={formatPct(sn1)}  sub={`${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`}   status={sn1Status(sn1, metaSn1)} />
-          <InfKPICard label="SN1 Sin COFO"    value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`}  status={sn1Status(sn1s, metaSn1)} />
-          <InfKPICard label="TMS Con COFO"    value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}  status={tmsStatus(tms, metaTms)} />
-          <InfKPICard label="TMS Sin COFO"    value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`} status={tmsStatus(tmss, metaTms)} />
+          <InfKPICard label="SN1 Con COFO"  value={formatPct(sn1)}  sub={`${formatN(data.sn1_hdp)} HDP / ${formatN(data.sn1_n)} casos`}  status={sn1Status(sn1,  metaSn1)} />
+          <InfKPICard label="SN1 Sin COFO"  value={formatPct(sn1s)} sub={`${formatN(data.sn1s_hdp)} HDP / ${formatN(data.sn1s_n)} casos`} status={sn1Status(sn1s, metaSn1)} />
+          <InfKPICard label="TMS Con COFO"  value={formatHMS(tms)}  sub={`${formatN(data.tms_n)} casos · Meta ${metaTms}h`}               status={tmsStatus(tms,  metaTms)} />
+          <InfKPICard label="TMS Sin COFO"  value={formatHMS(tmss)} sub={`${formatN(data.tmss_n)} casos · Meta ${metaTms}h`}              status={tmsStatus(tmss, metaTms)} />
           <InfKPICard label={`Prom TMS s/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsSc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsSc, metaTms)} />
           <InfKPICard label={`Prom TMS c/COFO (${histFinal.length}m)`} value={formatHMS(avgTmsCc)} sub={`Promedio ${histFinal.length} meses`} status={tmsStatus(avgTmsCc, metaTms)} />
-          <InfKPICard label={`Prom SN1 s/COFO (${histFinal.length}m)`} value={`${(avgSn1Sc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
-          <InfKPICard label={`Prom SN1 c/COFO (${histFinal.length}m)`} value={`${(avgSn1Cc * 100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 s/COFO (${histFinal.length}m)`} value={`${(avgSn1Sc*100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Sc, metaSn1)} />
+          <InfKPICard label={`Prom SN1 c/COFO (${histFinal.length}m)`} value={`${(avgSn1Cc*100).toFixed(1)}%`} sub={`Promedio ${histFinal.length} meses`} status={sn1Status(avgSn1Cc, metaSn1)} />
         </div>
 
-        {/* Top 5 mejor / peor TMS */}
+        {/* ── Evolución diaria TMS + SN1 (más grandes, sin tabla) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          {/* TMS acumulado */}
+          <div className="rounded-xl border border-border bg-accent/30 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">TMS Acumulado (Horas)</p>
+              <div className="flex items-center gap-3 text-[10px] font-semibold">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: BLUE}}/>Con COFO</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: GREEN}}/>Sin COFO</span>
+              </div>
+            </div>
+            {/* ↑ height aumentado de 160 → 280 */}
+            <div style={{ height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={BLUE}  stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor={BLUE}  stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={GREEN} stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor={GREEN} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis tick={{ fontSize: 10, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
+                  <ReferenceLine y={metaTms} stroke={RED} strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke={BLUE}  fill="url(#rg1)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke={GREEN} fill="url(#rg2)" strokeWidth={2}   dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* SN1 acumulado */}
+          <div className="rounded-xl border border-border bg-accent/30 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">SN1 Acumulado (%)</p>
+              <div className="flex items-center gap-3 text-[10px] font-semibold">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: BLUE}}/>Con COFO</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: GREEN}}/>Sin COFO</span>
+              </div>
+            </div>
+            {/* ↑ height aumentado de 160 → 280 */}
+            <div style={{ height: 280 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={acum} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={BLUE}  stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor={BLUE}  stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={GREEN} stopOpacity={0.15}/>
+                      <stop offset="95%" stopColor={GREEN} stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: 'hsl(240 4% 45%)' }} />
+                  <YAxis domain={[0, 105]} tick={{ fontSize: 10, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
+                  <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
+                  <ReferenceLine y={metaSn1 * 100} stroke={RED} strokeDasharray="6 3" strokeWidth={2} />
+                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke={BLUE}  fill="url(#rg3)" strokeWidth={2.5} dot={false} />
+                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke={GREEN} fill="url(#rg4)" strokeWidth={2}   dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Histórico 6 meses TMS + SN1 (sin tabla debajo) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
-            { title: 'Top 5 clientes — mejor TMS', data: top5best },
-            { title: 'Top 5 clientes — peor TMS',  data: top5worst },
-          ].map(({ title, data: d }) => (
-            <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-              <div style={{ height: 180 }}>
+            { title: 'TMS Mensual — Tendencia 6 Meses', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms,        fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
+            { title: 'SN1 Mensual — Tendencia 6 Meses', scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105]         },
+          ].map(({ title, scKey, ccKey, meta, fmt, yDomain }) => {
+            const isSN1 = scKey === 'sn1_sc'
+            const chartData = hist.map(h => ({
+              mes: h.mes,
+              sc:  isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
+              cc:  isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
+            }))
+            return (
+              <div key={title} className="rounded-xl border border-border bg-accent/30 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+                  <div className="flex items-center gap-3 text-[10px] font-semibold">
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: GREEN}}/>Sin COFO</span>
+                    <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 rounded" style={{background: BLUE}}/>Con COFO</span>
+                  </div>
+                </div>
+                {/* ↑ height aumentado de 150 → 260 */}
+                <div style={{ height: 260 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="mes" tick={{ fontSize: 11, fill: 'hsl(240 4% 45%)' }} />
+                      <YAxis domain={yDomain} tick={{ fontSize: 11, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
+                      <Tooltip content={<DarkTooltip formatter={fmt} />} />
+                      <ReferenceLine y={meta} stroke={RED} strokeDasharray="6 3" strokeWidth={2} />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke={GREEN} strokeWidth={2.5} dot={{ r: 5, fill: GREEN }} />
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke={BLUE}  strokeWidth={2.5} dot={{ r: 5, fill: BLUE  }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* ✂️  Tabla de valores numéricos ELIMINADA — ya no aparece aquí */}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* ── Top 5 mejor / peor TMS (más grandes) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {[
+            { title: '🏆 Top 5 Clientes — Mejor TMS', data: top5best,  good: true  },
+            { title: '⚠️ Top 5 Clientes — Peor TMS',  data: top5worst, good: false },
+          ].map(({ title, data: d, good }) => (
+            <div key={title} className="rounded-xl border border-border bg-accent/30 p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-4">{title}</p>
+              {/* ↑ height aumentado de 180 → 260 */}
+              <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={d.map(c => ({ name: c.nombre.length > 18 ? c.nombre.slice(0, 17) + '…' : c.nombre, tms: +(c.tmss ?? 0).toFixed(2) }))} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                  <BarChart
+                    data={d.map(c => ({
+                      name: c.nombre.length > 22 ? c.nombre.slice(0, 21) + '…' : c.nombre,
+                      tms:  +(tmsKey(c)).toFixed(2),
+                    }))}
+                    layout="vertical"
+                    margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-                    <XAxis type="number" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
-                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9, fill: 'hsl(240 4% 55%)' }} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
+                    <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10, fill: 'hsl(240 4% 55%)' }} />
                     <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                    <Bar dataKey="tms" radius={[0, 4, 4, 0]} barSize={14}>
-                      {d.map((c, i) => <Cell key={i} fill={(c.tmss ?? 0) <= metaTms ? 'hsl(142 71% 45% / 0.75)' : 'hsl(0 84% 60% / 0.7)'} />)}
+                    <Bar dataKey="tms" radius={[0, 5, 5, 0]} barSize={18}>
+                      {d.map((c, i) => (
+                        <Cell
+                          key={i}
+                          fill={tmsKey(c) <= metaTms
+                            ? 'hsl(142 71% 45% / 0.8)'
+                            : 'hsl(0 84% 60% / 0.75)'}
+                        />
+                      ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Evolución diaria TMS + SN1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-border bg-accent/30 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">TMS acumulado (horas)</p>
-              <div className="flex gap-1">
-                {(['cc','sc'] as const).map(v => (
-                  <button key={v} onClick={() => setAcumTmsView(prev => prev === v ? 'both' : v)}
-                    className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all',
-                      (acumTmsView === v || acumTmsView === 'both')
-                        ? v === 'cc' ? 'bg-blue-500/20 border-blue-400 text-blue-400' : 'bg-emerald-500/20 border-emerald-400 text-emerald-400'
-                        : 'border-border text-muted-foreground opacity-40'
-                    )}>
-                    {v === 'cc' ? 'CON COFO' : 'SIN COFO'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ height: 185 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acumAjustado} margin={{ top: 12, right: 85, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
-                  <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
-                  <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
-                  <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                  {(acumTmsView === 'both' || acumTmsView === 'cc') && (
-                    <Area type="monotone" dataKey="tms" name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5}
-                      dot={(props: any) => {
-                        const { cx, cy, index, payload } = props
-                        if (index !== acumAjustado.length - 1 || payload.tms == null) return <g key={index} />
-                        return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
-                      }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, formatHMS, acumAjustado.length)}
-                    />
-                  )}
-                  {(acumTmsView === 'both' || acumTmsView === 'sc') && (
-                    <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2}
-                      dot={(props: any) => {
-                        const { cx, cy, index, payload } = props
-                        if (index !== acumAjustado.length - 1 || payload.tmss == null) return <g key={index} />
-                        return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
-                      }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', false, formatHMS, acumAjustado.length)}
-                    />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border bg-accent/30 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SN1 acumulado (%)</p>
-              <div className="flex gap-1">
-                {(['cc','sc'] as const).map(v => (
-                  <button key={v} onClick={() => setAcumSn1View(prev => prev === v ? 'both' : v)}
-                    className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all',
-                      (acumSn1View === v || acumSn1View === 'both')
-                        ? v === 'cc' ? 'bg-blue-500/20 border-blue-400 text-blue-400' : 'bg-emerald-500/20 border-emerald-400 text-emerald-400'
-                        : 'border-border text-muted-foreground opacity-40'
-                    )}>
-                    {v === 'cc' ? 'CON COFO' : 'SIN COFO'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ height: 185 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acumAjustado} margin={{ top: 12, right: 55, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="fecha" tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} />
-                  <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
-                  <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
-                  <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                  {(acumSn1View === 'both' || acumSn1View === 'cc') && (
-                    <Area type="monotone" dataKey="sn1" name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5}
-                      dot={(props: any) => {
-                        const { cx, cy, index, payload } = props
-                        if (index !== acumAjustado.length - 1 || payload.sn1 == null) return <g key={index} />
-                        return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
-                      }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, (v: number) => `${v.toFixed(1)}%`, acumAjustado.length)}
-                    />
-                  )}
-                  {(acumSn1View === 'both' || acumSn1View === 'sc') && (
-                    <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}
-                      dot={(props: any) => {
-                        const { cx, cy, index, payload } = props
-                        if (index !== acumAjustado.length - 1 || payload.sn1s == null) return <g key={index} />
-                        return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
-                      }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', false, (v: number) => `${v.toFixed(1)}%`, acumAjustado.length)}
-                    />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Histórico 6 meses TMS + SN1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[
-            { title: 'TMS mensual — tendencia 6 meses', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, fmtTbl: formatHMS, yDomain: undefined as any },
-            { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, fmtTbl: null,       yDomain: [0, 105] },
-          ].map(({ title, scKey, ccKey, meta, fmt, fmtTbl, yDomain }) => {
-            const isSN1 = scKey === 'sn1_sc'
-            const chartData = histConActual.map((h: any) => ({
-              mes: h.mes,
-              sc: isSN1 ? +((h[scKey] as number) * 100).toFixed(1) : +(h[scKey] as number).toFixed(2),
-              cc: isSN1 ? +((h[ccKey] as number) * 100).toFixed(1) : +(h[ccKey] as number).toFixed(2),
-            }))
-            const lastIdx = chartData.length - 1
-            return (
-              <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 155 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
-                      <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
-                      <Tooltip content={<DarkTooltip formatter={fmt} />} />
-                      <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} />
-                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2}
-                        dot={(props: any) => {
-                          const { cx, cy, index } = props
-                          return <circle key={`sc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} />
-                        }}
-                      />
-                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2}
-                        dot={(props: any) => {
-                          const { cx, cy, index } = props
-                          return <circle key={`cc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} />
-                        }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                {/* Tabla de valores */}
-                <div className="mt-2 border-t border-border/50 pt-2">
-                  <table className="w-full text-center" style={{ tableLayout: 'fixed' }}>
-                    <thead>
-                      <tr>
-                        <td className="w-14" />
-                        {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] text-muted-foreground pb-0.5">{d.mes}</td>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="text-[9px] font-bold text-emerald-400 text-left">s/COFO</td>
-                        {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] font-black py-0.5 text-emerald-400">
-                            {(fmtTbl ?? fmt)(d.sc)}
-                          </td>
-                        ))}
-                      </tr>
-                      <tr>
-                        <td className="text-[9px] font-bold text-blue-400 text-left pt-0.5">c/COFO</td>
-                        {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] font-black py-0.5 text-blue-400">
-                            {(fmtTbl ?? fmt)(d.cc)}
-                          </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )
-          })}
         </div>
 
         {/* Footer slide 1 */}
@@ -710,14 +539,16 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         </div>
       </div>
 
-      {/* Separador */}
+      {/* Separador entre slides */}
       <div className="flex items-center gap-3 no-print">
         <div className="flex-1 h-px bg-border" />
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Diapositiva 2 — Top 10 Clientes</p>
         <div className="flex-1 h-px bg-border" />
       </div>
 
-      {/* ═══ SLIDE 2 ═══ */}
+      {/* ══════════════════════════════════════════
+          SLIDE 2
+      ══════════════════════════════════════════ */}
       <div ref={slide2Ref} className="rounded-2xl border border-border bg-card p-7 space-y-5 print-slide">
 
         {/* Header slide 2 */}
@@ -737,8 +568,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Causa Imputabilidad</p>
           <div className="grid grid-cols-3 gap-3">
             {top3causas.map(([causa, n], i) => {
-              const colors = ['border-l-primary', 'border-l-success', 'border-l-warning']
-              const txtColors = ['text-primary', 'text-success', 'text-warning']
+              const colors    = ['border-l-primary', 'border-l-success', 'border-l-warning']
+              const txtColors = ['text-primary',     'text-success',     'text-warning'    ]
               const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
               return (
                 <div key={causa} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
@@ -757,8 +588,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Top 3 — Tipo de Falla (N5)</p>
           <div className="grid grid-cols-3 gap-3">
             {top3fallas.map(([falla, n], i) => {
-              const colors = ['border-l-[hsl(262_83%_58%)]', 'border-l-[hsl(199_89%_48%)]', 'border-l-[hsl(173_58%_39%)]']
-              const txtColors = ['text-[hsl(262_83%_70%)]', 'text-[hsl(199_89%_60%)]', 'text-[hsl(173_58%_55%)]']
+              const colors    = ['border-l-[hsl(262_83%_58%)]', 'border-l-[hsl(199_89%_48%)]', 'border-l-[hsl(173_58%_39%)]']
+              const txtColors = ['text-[hsl(262_83%_70%)]',     'text-[hsl(199_89%_60%)]',     'text-[hsl(173_58%_55%)]'    ]
               const pct = records.length > 0 ? (n / records.length * 100).toFixed(1) : '0'
               return (
                 <div key={falla} className={cn('rounded-xl border border-border border-l-4 bg-accent/30 p-4', colors[i])}>
@@ -792,10 +623,10 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               {top10.map((c, i) => {
                 const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
                 const sn1Pct  = c.sn1_n  > 0 ? (c.sn1_hdp  / c.sn1_n  * 100).toFixed(1) + '%' : '—'
-                const okTmss = (c.tmss ?? 0) <= metaTms
-                const okTms  = (c.tms  ?? 0) <= metaTms
-                const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
-                const okSn1  = c.sn1_n  > 0 && c.sn1_hdp  / c.sn1_n  >= metaSn1
+                const okTmss  = (c.tmss ?? 0) <= metaTms
+                const okTms   = (c.tms  ?? 0) <= metaTms
+                const okSn1s  = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+                const okSn1   = c.sn1_n  > 0 && c.sn1_hdp  / c.sn1_n  >= metaSn1
                 return (
                   <tr key={c.nit || i} className={i % 2 === 0 ? 'bg-card' : 'bg-accent/20'}>
                     <td className="px-3 py-2 font-semibold text-foreground text-center border-b border-border/50">{c.nombre.slice(0, 32)}</td>
@@ -819,8 +650,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         <div className="md:hidden space-y-2">
           {top10.map((c, i) => {
             const sn1sPct = c.sn1s_n > 0 ? (c.sn1s_hdp / c.sn1s_n * 100).toFixed(1) + '%' : '—'
-            const okTmss = (c.tmss ?? 0) <= metaTms
-            const okSn1s = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
+            const okTmss  = (c.tmss ?? 0) <= metaTms
+            const okSn1s  = c.sn1s_n > 0 && c.sn1s_hdp / c.sn1s_n >= metaSn1
             return (
               <div key={c.nit || i} className="rounded-xl border border-border bg-card/50 p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -863,6 +694,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
           <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
+
     </div>
   )
 }
