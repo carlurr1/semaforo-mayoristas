@@ -607,33 +607,12 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
             const lastIdx = chartData.length - 1
-
-            // Un solo componente que dibuja ambos pills por punto, con separación garantizada
-            const BothLabels = (props: any) => {
-              const { x, y, index, dataKey, value } = props
-              if (value == null) return <g key={`bl-${dataKey}-${index}`} />
-              const txt = fmt(value)
-              const isLast = index === lastIdx
-              const isSc = dataKey === 'sc'
-              const color  = isSc ? '#6ee7b7' : '#93c5fd'
-              const bg     = isSc ? '#14412f' : '#1e3a5f'
-              const w = txt.length * 6 + 12
-              const h = 15
-              // Separación: sc siempre abajo del punto, cc siempre arriba — 6px de gap
-              const py = isSc ? y + 6 : y - h - 6
-              return (
-                <g key={`bl-${dataKey}-${index}`}>
-                  <rect x={x - w / 2} y={py} width={w} height={h} rx={4} fill={bg} opacity={isLast ? 1 : 0.7} />
-                  <text x={x} y={py + h - 4} fontSize={isLast ? 9.5 : 8} fill={color} fontWeight={isLast ? 800 : 700} textAnchor="middle">{txt}</text>
-                </g>
-              )
-            }
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 210 }}>
+                <div style={{ height: 155 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 30, right: 16, left: 0, bottom: 24 }}>
+                    <LineChart data={chartData} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
@@ -644,17 +623,46 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                           const { cx, cy, index } = props
                           return <circle key={`sc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} />
                         }}
-                        label={BothLabels}
                       />
                       <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2}
                         dot={(props: any) => {
                           const { cx, cy, index } = props
                           return <circle key={`cc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} />
                         }}
-                        label={BothLabels}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                </div>
+                {/* Tabla de valores */}
+                <div className="mt-2 border-t border-border/50 pt-2">
+                  <table className="w-full text-center" style={{ tableLayout: 'fixed' }}>
+                    <thead>
+                      <tr>
+                        <td className="w-14" />
+                        {chartData.map((d, i) => (
+                          <td key={i} className="text-[9px] text-muted-foreground pb-0.5">{d.mes}</td>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="text-[9px] font-bold text-emerald-400 text-left">s/COFO</td>
+                        {chartData.map((d, i) => (
+                          <td key={i} className={`text-[9px] font-bold py-0.5 rounded ${i === lastIdx ? 'bg-emerald-900/50 text-emerald-300' : 'text-emerald-500/80'}`}>
+                            {fmt(d.sc)}
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="text-[9px] font-bold text-blue-400 text-left pt-0.5">c/COFO</td>
+                        {chartData.map((d, i) => (
+                          <td key={i} className={`text-[9px] font-bold py-0.5 rounded ${i === lastIdx ? 'bg-blue-900/50 text-blue-300' : 'text-blue-400/80'}`}>
+                            {fmt(d.cc)}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )
