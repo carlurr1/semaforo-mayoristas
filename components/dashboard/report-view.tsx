@@ -291,6 +291,27 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   // Acumulado diario
   const acum = calcAcumulado(data)
 
+  // Acumulado ajustado — aplica el factor del ajuste manual escalando todos los puntos
+  // proporcionalmente al ratio entre el valor ajustado y el último punto real
+  const acumAjustado = (() => {
+    if (!acumAjustado.length) return acum
+    const last = acum[acumAjustado.length - 1]
+    // Factores de escala: ajustado / real (si no hay ajuste, factor = 1)
+    const factorTmsCc  = (last.tms  != null && last.tms  > 0 && tms  !== data.tms)  ? tms  / last.tms  : 1
+    const factorTmsSc  = (last.tmss != null && last.tmss > 0 && tmss !== data.tmss) ? tmss / last.tmss : 1
+    const factorSn1Cc  = (last.sn1  != null && last.sn1  > 0 && sn1  !== data.sn1)  ? (sn1  * 100) / last.sn1  : 1
+    const factorSn1Sc  = (last.sn1s != null && last.sn1s > 0 && sn1s !== data.sn1s) ? (sn1s * 100) / last.sn1s : 1
+    // Si no hay ajuste en ninguno, devolver el acum original
+    if (factorTmsCc === 1 && factorTmsSc === 1 && factorSn1Cc === 1 && factorSn1Sc === 1) return acum
+    return acum.map(p => ({
+      ...p,
+      tms:  p.tms  != null ? p.tms  * factorTmsCc  : null,
+      tmss: p.tmss != null ? p.tmss * factorTmsSc  : null,
+      sn1:  p.sn1  != null ? p.sn1  * factorSn1Cc  : null,
+      sn1s: p.sn1s != null ? p.sn1s * factorSn1Sc  : null,
+    }))
+  })()
+
   // Top clientes
   const clientes = data.clientes || []
   const tmsKey = (c: any) => (c.tmss != null && c.tmss > 0) ? c.tmss : (c.tms || 0)
@@ -518,7 +539,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             </div>
             <div style={{ height: 185 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 12, right: 85, left: 0, bottom: 0 }}>
+                <AreaChart data={acumAjustado} margin={{ top: 12, right: 85, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -532,20 +553,20 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     <Area type="monotone" dataKey="tms" name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5}
                       dot={(props: any) => {
                         const { cx, cy, index, payload } = props
-                        if (index !== acum.length - 1 || payload.tms == null) return <g key={index} />
+                        if (index !== acumAjustado.length - 1 || payload.tms == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, formatHMS, acum.length)}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, formatHMS, acumAjustado.length)}
                     />
                   )}
                   {(acumTmsView === 'both' || acumTmsView === 'sc') && (
                     <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2}
                       dot={(props: any) => {
                         const { cx, cy, index, payload } = props
-                        if (index !== acum.length - 1 || payload.tmss == null) return <g key={index} />
+                        if (index !== acumAjustado.length - 1 || payload.tmss == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', false, formatHMS, acum.length)}
+                      label={makeEndLabel('#6ee7b7', '#14412f', false, formatHMS, acumAjustado.length)}
                     />
                   )}
                 </AreaChart>
@@ -571,7 +592,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             </div>
             <div style={{ height: 185 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 12, right: 55, left: 0, bottom: 0 }}>
+                <AreaChart data={acumAjustado} margin={{ top: 12, right: 55, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -585,20 +606,20 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     <Area type="monotone" dataKey="sn1" name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5}
                       dot={(props: any) => {
                         const { cx, cy, index, payload } = props
-                        if (index !== acum.length - 1 || payload.sn1 == null) return <g key={index} />
+                        if (index !== acumAjustado.length - 1 || payload.sn1 == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, (v: number) => `${v.toFixed(1)}%`, acum.length)}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, (v: number) => `${v.toFixed(1)}%`, acumAjustado.length)}
                     />
                   )}
                   {(acumSn1View === 'both' || acumSn1View === 'sc') && (
                     <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}
                       dot={(props: any) => {
                         const { cx, cy, index, payload } = props
-                        if (index !== acum.length - 1 || payload.sn1s == null) return <g key={index} />
+                        if (index !== acumAjustado.length - 1 || payload.sn1s == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', false, (v: number) => `${v.toFixed(1)}%`, acum.length)}
+                      label={makeEndLabel('#6ee7b7', '#14412f', false, (v: number) => `${v.toFixed(1)}%`, acumAjustado.length)}
                     />
                   )}
                 </AreaChart>
