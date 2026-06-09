@@ -597,9 +597,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         {/* Histórico 6 meses TMS + SN1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
-            { title: 'TMS mensual — tendencia 6 meses', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
-            { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
-          ].map(({ title, scKey, ccKey, meta, fmt, yDomain }) => {
+            { title: 'TMS mensual — tendencia 6 meses', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, fmtTbl: formatHMS, yDomain: undefined as any },
+            { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, fmtTbl: null,       yDomain: [0, 105] },
+          ].map(({ title, scKey, ccKey, meta, fmt, fmtTbl, yDomain }) => {
             const isSN1 = scKey === 'sn1_sc'
             const chartData = hist.map(h => ({
               mes: h.mes,
@@ -648,16 +648,16 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       <tr>
                         <td className="text-[9px] font-bold text-emerald-400 text-left">s/COFO</td>
                         {chartData.map((d, i) => (
-                          <td key={i} className={`text-[9px] font-bold py-0.5 rounded ${i === lastIdx ? 'bg-emerald-900/50 text-emerald-300' : 'text-emerald-500/80'}`}>
-                            {fmt(d.sc)}
+                          <td key={i} className="text-[9px] font-black py-0.5 text-emerald-400">
+                            {(fmtTbl ?? fmt)(d.sc)}
                           </td>
                         ))}
                       </tr>
                       <tr>
                         <td className="text-[9px] font-bold text-blue-400 text-left pt-0.5">c/COFO</td>
                         {chartData.map((d, i) => (
-                          <td key={i} className={`text-[9px] font-bold py-0.5 rounded ${i === lastIdx ? 'bg-blue-900/50 text-blue-300' : 'text-blue-400/80'}`}>
-                            {fmt(d.cc)}
+                          <td key={i} className="text-[9px] font-black py-0.5 text-blue-400">
+                            {(fmtTbl ?? fmt)(d.cc)}
                           </td>
                         ))}
                       </tr>
