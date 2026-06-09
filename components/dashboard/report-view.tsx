@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Legend, Cell
+  ReferenceLine, Legend, Cell, LabelList
 } from 'recharts'
 import { cn, formatHMS, formatPct, formatN, sn1Status, tmsStatus, statusLabel, mesLabel } from '@/lib/utils'
 import type { MetricasData, ClienteData, BDRecord, SerieDia } from '@/lib/gas'
@@ -189,6 +189,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const [ajTmsCc, setAjTmsCc] = useState('')
   const [ajTmsSc, setAjTmsSc] = useState('')
   const [downloading, setDownloading] = useState(false)
+  // Toggles vista acumulado
+  const [acumTmsView, setAcumTmsView] = useState<'both'|'cc'|'sc'>('both')
+  const [acumSn1View, setAcumSn1View] = useState<'both'|'cc'|'sc'>('both')
 
   // Datos con ajuste manual aplicado
   const sn1  = ajSn1Cc ? parseFloat(ajSn1Cc) / 100 : data.sn1
@@ -391,9 +394,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         {/* Header slide 1 */}
         <div className="flex items-center justify-between pb-5 border-b border-border">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-sm">ETB</div>
+            <img src="/icon-192.png" alt="ETB" className="h-12 w-12 rounded-xl object-contain" />
             <div>
-              <p className="text-lg font-bold text-foreground tracking-tight">Semáforo Mayoristas</p>
+              <p className="text-lg font-bold text-foreground tracking-tight">Indicadores Mayoristas HDP</p>
               <p className="text-xs text-muted-foreground font-mono">ETB E&G Soporte — Customer Operation Success</p>
             </div>
           </div>
@@ -443,10 +446,24 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         {/* Evolución diaria TMS + SN1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-xl border border-border bg-accent/30 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">TMS acumulado — evolución del mes</p>
-            <div style={{ height: 160 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">TMS acumulado (horas)</p>
+              <div className="flex gap-1">
+                {(['cc','sc'] as const).map(v => (
+                  <button key={v} onClick={() => setAcumTmsView(prev => prev === v ? 'both' : v)}
+                    className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all',
+                      (acumTmsView === v || acumTmsView === 'both')
+                        ? v === 'cc' ? 'bg-blue-500/20 border-blue-400 text-blue-400' : 'bg-emerald-500/20 border-emerald-400 text-emerald-400'
+                        : 'border-border text-muted-foreground opacity-40'
+                    )}>
+                    {v === 'cc' ? 'CON COFO' : 'SIN COFO'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 18, right: 40, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -456,18 +473,58 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                   <YAxis tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}h`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => formatHMS(v)} />} />
                   <ReferenceLine y={metaTms} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                  <Area type="monotone" dataKey="tms"  name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2} dot={false} />
+                  {(acumTmsView === 'both' || acumTmsView === 'cc') && (
+                    <Area type="monotone" dataKey="tms" name="Con COFO" stroke="#60a5fa" fill="url(#rg1)" strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, index, payload } = props
+                        if (index !== acum.length - 1 || payload.tms == null) return <g key={index} />
+                        return <circle key={index} cx={cx} cy={cy} r={4} fill="#60a5fa" stroke="#fff" strokeWidth={1.5} />
+                      }}
+                      label={(props: any) => {
+                        const { x, y, index, value } = props
+                        if (index !== acum.length - 1 || value == null) return null
+                        return <text key={index} x={x + 6} y={y - 6} fontSize={9} fill="#60a5fa" fontWeight={700} textAnchor="start">{formatHMS(value)}</text>
+                      }}
+                    />
+                  )}
+                  {(acumTmsView === 'both' || acumTmsView === 'sc') && (
+                    <Area type="monotone" dataKey="tmss" name="Sin COFO" stroke="#34d399" fill="url(#rg2)" strokeWidth={2}
+                      dot={(props: any) => {
+                        const { cx, cy, index, payload } = props
+                        if (index !== acum.length - 1 || payload.tmss == null) return <g key={index} />
+                        return <circle key={index} cx={cx} cy={cy} r={4} fill="#34d399" stroke="#fff" strokeWidth={1.5} />
+                      }}
+                      label={(props: any) => {
+                        const { x, y, index, value } = props
+                        if (index !== acum.length - 1 || value == null) return null
+                        return <text key={index} x={x + 6} y={y + 14} fontSize={9} fill="#34d399" fontWeight={700} textAnchor="start">{formatHMS(value)}</text>
+                      }}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           <div className="rounded-xl border border-border bg-accent/30 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">SN1 acumulado — evolución del mes</p>
-            <div style={{ height: 160 }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">SN1 acumulado (%)</p>
+              <div className="flex gap-1">
+                {(['cc','sc'] as const).map(v => (
+                  <button key={v} onClick={() => setAcumSn1View(prev => prev === v ? 'both' : v)}
+                    className={cn('px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all',
+                      (acumSn1View === v || acumSn1View === 'both')
+                        ? v === 'cc' ? 'bg-blue-500/20 border-blue-400 text-blue-400' : 'bg-emerald-500/20 border-emerald-400 text-emerald-400'
+                        : 'border-border text-muted-foreground opacity-40'
+                    )}>
+                    {v === 'cc' ? 'CON COFO' : 'SIN COFO'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 18, right: 40, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -477,8 +534,34 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                   <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                   <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                  <Area type="monotone" dataKey="sn1"  name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5} dot={false} />
-                  <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2} dot={false} />
+                  {(acumSn1View === 'both' || acumSn1View === 'cc') && (
+                    <Area type="monotone" dataKey="sn1" name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, index, payload } = props
+                        if (index !== acum.length - 1 || payload.sn1 == null) return <g key={index} />
+                        return <circle key={index} cx={cx} cy={cy} r={4} fill="#60a5fa" stroke="#fff" strokeWidth={1.5} />
+                      }}
+                      label={(props: any) => {
+                        const { x, y, index, value } = props
+                        if (index !== acum.length - 1 || value == null) return null
+                        return <text key={index} x={x + 6} y={y - 6} fontSize={9} fill="#60a5fa" fontWeight={700} textAnchor="start">{`${value.toFixed(1)}%`}</text>
+                      }}
+                    />
+                  )}
+                  {(acumSn1View === 'both' || acumSn1View === 'sc') && (
+                    <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}
+                      dot={(props: any) => {
+                        const { cx, cy, index, payload } = props
+                        if (index !== acum.length - 1 || payload.sn1s == null) return <g key={index} />
+                        return <circle key={index} cx={cx} cy={cy} r={4} fill="#34d399" stroke="#fff" strokeWidth={1.5} />
+                      }}
+                      label={(props: any) => {
+                        const { x, y, index, value } = props
+                        if (index !== acum.length - 1 || value == null) return null
+                        return <text key={index} x={x + 6} y={y + 14} fontSize={9} fill="#34d399" fontWeight={700} textAnchor="start">{`${value.toFixed(1)}%`}</text>
+                      }}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -488,8 +571,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         {/* Histórico 6 meses TMS + SN1 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[
-            { title: 'TMS mensual — tendencia', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
-            { title: 'SN1 mensual — tendencia',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
+            { title: 'TMS mensual — tendencia 6 meses', scKey: 'tms_sc', ccKey: 'tms_cc', meta: metaTms, fmt: (v: number) => `${v.toFixed(1)}h`, yDomain: undefined as any },
+            { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, yDomain: [0, 105] },
           ].map(({ title, scKey, ccKey, meta, fmt, yDomain }) => {
             const isSN1 = scKey === 'sn1_sc'
             const chartData = hist.map(h => ({
@@ -500,16 +583,20 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 150 }}>
+                <div style={{ height: 180 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                    <LineChart data={chartData} margin={{ top: 18, right: 20, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
                       <ReferenceLine y={meta} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }} />
-                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }} />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(142 71% 45%)' }}>
+                        <LabelList dataKey="sc" position="top" formatter={fmt} style={{ fontSize: 9, fill: 'hsl(142 71% 45%)', fontWeight: 700 }} />
+                      </Line>
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={{ r: 4, fill: 'hsl(217 91% 65%)' }}>
+                        <LabelList dataKey="cc" position="bottom" formatter={fmt} style={{ fontSize: 9, fill: 'hsl(217 91% 65%)', fontWeight: 700 }} />
+                      </Line>
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -520,7 +607,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
         {/* Footer slide 1 */}
         <div className="flex justify-between items-center pt-4 border-t border-border">
-          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Indicadores Mayoristas HDP</p>
           <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
@@ -538,7 +625,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
         {/* Header slide 2 */}
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center font-bold text-primary text-xs">ETB</div>
+            <img src="/icon-192.png" alt="ETB" className="h-10 w-10 rounded-xl object-contain" />
             <div>
               <p className="text-sm font-bold text-foreground tracking-tight">Top 10 Clientes Mayoristas</p>
               <p className="text-xs text-muted-foreground mt-0.5">Mes: {mLabel} · Corte: {today}</p>
@@ -674,7 +761,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
 
         {/* Footer slide 2 */}
         <div className="flex justify-between items-center pt-4 border-t border-border">
-          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Semáforo Mayoristas</p>
+          <p className="text-[10px] text-muted-foreground">Generado automáticamente · ETB Indicadores Mayoristas HDP</p>
           <p className="text-[10px] text-muted-foreground font-mono">{now}</p>
         </div>
       </div>
