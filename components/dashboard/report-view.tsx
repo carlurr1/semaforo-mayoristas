@@ -607,8 +607,8 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
             const lastIdx = chartData.length - 1
-            const LabelSc = makePillLabel('#6ee7b7', '#14412f', -8, lastIdx, fmt)
-            const LabelCc = makePillLabel('#93c5fd', '#1e3a5f', 20, lastIdx, fmt)
+            const LabelSc = makePillLabel('#6ee7b7', '#14412f', 20, lastIdx, fmt)
+            const LabelCc = makePillLabel('#93c5fd', '#1e3a5f', -8, lastIdx, fmt)
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
