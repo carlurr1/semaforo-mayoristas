@@ -581,55 +581,49 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
             const lastIdx = chartData.length - 1
+            const lastSc = chartData[lastIdx]?.sc
+            const lastCc = chartData[lastIdx]?.cc
+
+            // Custom dot: solo pinta el círculo, sin label inline
+            const customDotSc = (props: any) => {
+              const { cx, cy, index } = props
+              const r = index === lastIdx ? 5 : 3
+              const opacity = index === lastIdx ? 1 : 0.6
+              return <circle key={`sc-${index}`} cx={cx} cy={cy} r={r} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} opacity={opacity} />
+            }
+            const customDotCc = (props: any) => {
+              const { cx, cy, index } = props
+              const r = index === lastIdx ? 5 : 3
+              const opacity = index === lastIdx ? 1 : 0.6
+              return <circle key={`cc-${index}`} cx={cx} cy={cy} r={r} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} opacity={opacity} />
+            }
+
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 200 }}>
+                <div className="flex items-start justify-between mb-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</p>
+                  {/* Badges con último valor */}
+                  <div className="flex gap-2 shrink-0 ml-2">
+                    <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
+                      s/COFO {lastSc != null ? fmt(lastSc) : '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block" />
+                      c/COFO {lastCc != null ? fmt(lastCc) : '—'}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ height: 170 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 14, right: 14, left: 0, bottom: 4 }}>
+                    <LineChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
-                      <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} label={{ value: fmt(meta), position: 'insideTopRight', fontSize: 8, fill: '#ef4444' }} />
-                      <Line
-                        type="monotone" dataKey="sc" name="Sin COFO"
-                        stroke="hsl(142 71% 45%)" strokeWidth={2}
-                        dot={(props: any) => {
-                          const { cx, cy, index } = props
-                          return <circle key={index} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} />
-                        }}
-                        label={(props: any) => {
-                          const { x, y, index, value } = props
-                          if (value == null) return <g key={index} />
-                          const isLast = index === lastIdx
-                          return (
-                            <text key={index} x={x} y={y - 8} fontSize={isLast ? 10 : 8} fill="hsl(142 71% 45%)"
-                              fontWeight={isLast ? 800 : 600} textAnchor="middle"
-                              opacity={isLast ? 1 : 0.8}
-                            >{fmt(value)}</text>
-                          )
-                        }}
-                      />
-                      <Line
-                        type="monotone" dataKey="cc" name="Con COFO"
-                        stroke="hsl(217 91% 65%)" strokeWidth={2}
-                        dot={(props: any) => {
-                          const { cx, cy, index } = props
-                          return <circle key={index} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} />
-                        }}
-                        label={(props: any) => {
-                          const { x, y, index, value } = props
-                          if (value == null) return <g key={index} />
-                          const isLast = index === lastIdx
-                          return (
-                            <text key={index} x={x} y={y + 18} fontSize={isLast ? 10 : 8} fill="hsl(217 91% 65%)"
-                              fontWeight={isLast ? 800 : 600} textAnchor="middle"
-                              opacity={isLast ? 1 : 0.8}
-                            >{fmt(value)}</text>
-                          )
-                        }}
-                      />
+                      <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} />
+                      <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={customDotSc} />
+                      <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2} dot={customDotCc} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
