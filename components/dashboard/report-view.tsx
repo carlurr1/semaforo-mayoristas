@@ -139,16 +139,19 @@ function makePillLabel(color: string, bg: string, offsetUp: number, lastIdx: num
 }
 
 // Componente de label para el último punto de un AreaChart (solo ese punto)
-function makeEndLabel(color: string, bg: string, yOffset: number, fmt: (v: number) => string, totalLen: number) {
+// anchorTop=true → pill fijo en la parte alta del gráfico; false → parte baja
+function makeEndLabel(color: string, bg: string, anchorTop: boolean, fmt: (v: number) => string, totalLen: number) {
   return function EndLabelComp(props: any) {
     const { x, y, index, value } = props
     if (index !== totalLen - 1 || value == null) return <g key={`el-${index}`} />
     const txt = fmt(value)
-    const w = txt.length * 6 + 12
+    const w = txt.length * 6 + 14
+    // posición Y: si anchorTop usamos y-22 (arriba del punto), si no y+6 (abajo)
+    const py = anchorTop ? y - 22 : y + 6
     return (
       <g key={`el-${index}`}>
-        <rect x={x + 8} y={y + yOffset - 8} width={w} height={16} rx={5} fill={bg} />
-        <text x={x + 8 + w / 2} y={y + yOffset + 4} fontSize={9} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
+        <rect x={x + 8} y={py} width={w} height={16} rx={5} fill={bg} />
+        <text x={x + 8 + w / 2} y={py + 11} fontSize={9.5} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
       </g>
     )
   }
@@ -525,7 +528,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.tms == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', -10, formatHMS, acum.length)}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, formatHMS, acum.length)}
                     />
                   )}
                   {(acumTmsView === 'both' || acumTmsView === 'sc') && (
@@ -535,7 +538,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.tmss == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', 8, formatHMS, acum.length)}
+                      label={makeEndLabel('#6ee7b7', '#14412f', false, formatHMS, acum.length)}
                     />
                   )}
                 </AreaChart>
@@ -578,7 +581,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.sn1 == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#93c5fd', '#1e3a5f', -10, (v: number) => `${v.toFixed(1)}%`, acum.length)}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', true, (v: number) => `${v.toFixed(1)}%`, acum.length)}
                     />
                   )}
                   {(acumSn1View === 'both' || acumSn1View === 'sc') && (
@@ -588,7 +591,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.sn1s == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={makeEndLabel('#6ee7b7', '#14412f', 8, (v: number) => `${v.toFixed(1)}%`, acum.length)}
+                      label={makeEndLabel('#6ee7b7', '#14412f', false, (v: number) => `${v.toFixed(1)}%`, acum.length)}
                     />
                   )}
                 </AreaChart>
