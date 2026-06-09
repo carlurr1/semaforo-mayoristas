@@ -482,7 +482,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       }}
                       label={(props: any) => {
                         const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return null
+                        if (index !== acum.length - 1 || value == null) return <g key={index} />
                         return <text key={index} x={x + 6} y={y - 6} fontSize={9} fill="#60a5fa" fontWeight={700} textAnchor="start">{formatHMS(value)}</text>
                       }}
                     />
@@ -496,7 +496,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       }}
                       label={(props: any) => {
                         const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return null
+                        if (index !== acum.length - 1 || value == null) return <g key={index} />
                         return <text key={index} x={x + 6} y={y + 14} fontSize={9} fill="#34d399" fontWeight={700} textAnchor="start">{formatHMS(value)}</text>
                       }}
                     />
@@ -543,7 +543,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       }}
                       label={(props: any) => {
                         const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return null
+                        if (index !== acum.length - 1 || value == null) return <g key={index} />
                         return <text key={index} x={x + 6} y={y - 6} fontSize={9} fill="#60a5fa" fontWeight={700} textAnchor="start">{`${value.toFixed(1)}%`}</text>
                       }}
                     />
@@ -557,7 +557,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       }}
                       label={(props: any) => {
                         const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return null
+                        if (index !== acum.length - 1 || value == null) return <g key={index} />
                         return <text key={index} x={x + 6} y={y + 14} fontSize={9} fill="#34d399" fontWeight={700} textAnchor="start">{`${value.toFixed(1)}%`}</text>
                       }}
                     />
@@ -601,7 +601,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         }}
                         label={(props: any) => {
                           const { x, y, index, value } = props
-                          if (value == null) return null
+                          if (value == null) return <g key={index} />
                           const isLast = index === lastIdx
                           return (
                             <text key={index} x={x} y={y - 8} fontSize={isLast ? 10 : 8} fill="hsl(142 71% 45%)"
@@ -620,7 +620,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         }}
                         label={(props: any) => {
                           const { x, y, index, value } = props
-                          if (value == null) return null
+                          if (value == null) return <g key={index} />
                           const isLast = index === lastIdx
                           return (
                             <text key={index} x={x} y={y + 18} fontSize={isLast ? 10 : 8} fill="hsl(217 91% 65%)"
