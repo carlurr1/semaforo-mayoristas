@@ -139,15 +139,17 @@ function makePillLabel(color: string, bg: string, offsetUp: number, lastIdx: num
 }
 
 // Componente de label para el último punto de un AreaChart (solo ese punto)
-// anchorTop=true → pill fijo en la parte alta del gráfico; false → parte baja
+// anchorTop=true → pill pegado al tope del chart; false → pegado al fondo
 function makeEndLabel(color: string, bg: string, anchorTop: boolean, fmt: (v: number) => string, totalLen: number) {
   return function EndLabelComp(props: any) {
-    const { x, y, index, value } = props
+    const { x, y, index, value, viewBox } = props
     if (index !== totalLen - 1 || value == null) return <g key={`el-${index}`} />
     const txt = fmt(value)
     const w = txt.length * 6 + 14
-    // posición Y: si anchorTop usamos y-22 (arriba del punto), si no y+6 (abajo)
-    const py = anchorTop ? y - 22 : y + 6
+    // Posición Y completamente fija: arriba=10px desde top del chart, abajo=cerca del fondo
+    const chartTop = viewBox?.y ?? 0
+    const chartH   = viewBox?.height ?? 160
+    const py = anchorTop ? chartTop + 4 : chartTop + chartH - 20
     return (
       <g key={`el-${index}`}>
         <rect x={x + 8} y={py} width={w} height={16} rx={5} fill={bg} />
