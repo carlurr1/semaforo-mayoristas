@@ -255,9 +255,13 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
   const [yy, mm] = mes.split('-')
   const mL = `${meses[parseInt(mm)]} ${yy.slice(2)}`
-  // El histórico SOLO debe mostrar los meses cerrados (no el mes en curso)
-  // hist ya viene con los cierres guardados o HIST_BASE como fallback
   const histFinal = hist.slice(-6)
+
+  // Histórico + mes actual con valores ajustados (para las gráficas de tendencia)
+  const histConActual = [
+    ...hist.slice(-5),
+    { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
+  ]
 
   // Promedios históricos
   const avgTmsSc = histFinal.reduce((s, h) => s + (h.tms_sc || 0), 0) / histFinal.length
@@ -601,7 +605,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, fmtTbl: null,       yDomain: [0, 105] },
           ].map(({ title, scKey, ccKey, meta, fmt, fmtTbl, yDomain }) => {
             const isSN1 = scKey === 'sn1_sc'
-            const chartData = hist.map(h => ({
+            const chartData = histConActual.map(h => ({
               mes: h.mes,
               sc: isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
