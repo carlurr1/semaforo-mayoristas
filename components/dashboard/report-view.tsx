@@ -109,6 +109,51 @@ function calcAcumulado(data: MetricasData) {
   })
 }
 
+// ── Label pill SVG ─────────────────────────────────────────────────────────
+// Fabrica un componente de label para Recharts con pill de fondo.
+// color: color del texto | bg: color del fondo | offset: desplazamiento Y
+// lastIdx: índice del último punto — solo ese lleva pill, los demás texto simple
+function makePillLabel(color: string, bg: string, offsetUp: number, lastIdx: number, fmt: (v: number) => string) {
+  return function PillLabelComp(props: any) {
+    const { x, y, index, value } = props
+    if (value == null) return <g key={`pl-${index}`} />
+    const txt = fmt(value)
+    if (index !== lastIdx) {
+      // Puntos intermedios: texto plano pequeño
+      return (
+        <text key={`pl-${index}`} x={x} y={y + (offsetUp < 0 ? offsetUp - 2 : offsetUp + 12)}
+          fontSize={8} fill={color} fontWeight={600} textAnchor="middle" opacity={0.8}
+        >{txt}</text>
+      )
+    }
+    // Último punto: pill con fondo
+    const w = txt.length * 6 + 12
+    const py = offsetUp < 0 ? y + offsetUp - 12 : y + offsetUp + 2
+    return (
+      <g key={`pl-${index}`}>
+        <rect x={x - w / 2} y={py} width={w} height={16} rx={5} fill={bg} />
+        <text x={x} y={py + 11} fontSize={10} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
+      </g>
+    )
+  }
+}
+
+// Componente de label para el último punto de un AreaChart (solo ese punto)
+function makeEndLabel(color: string, bg: string, yOffset: number, fmt: (v: number) => string, totalLen: number) {
+  return function EndLabelComp(props: any) {
+    const { x, y, index, value } = props
+    if (index !== totalLen - 1 || value == null) return <g key={`el-${index}`} />
+    const txt = fmt(value)
+    const w = txt.length * 6 + 12
+    return (
+      <g key={`el-${index}`}>
+        <rect x={x + 8} y={y + yOffset - 8} width={w} height={16} rx={5} fill={bg} />
+        <text x={x + 8 + w / 2} y={y + yOffset + 4} fontSize={9} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
+      </g>
+    )
+  }
+}
+
 // Tooltip oscuro
 const DarkTooltip = ({ active, payload, label, formatter }: any) => {
   if (!active || !payload?.length) return null
@@ -461,9 +506,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                 ))}
               </div>
             </div>
-            <div style={{ height: 180 }}>
+            <div style={{ height: 185 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 10, right: 80, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 12, right: 85, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -480,17 +525,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.tms == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={(props: any) => {
-                        const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return <g key={index} />
-                        const txt = formatHMS(value); const w = txt.length * 5.5 + 8
-                        return (
-                          <g key={index}>
-                            <rect x={x + 9} y={y - 16} width={w} height={14} rx={4} fill="#1e3a5f" opacity={0.92} />
-                            <text x={x + 9 + w/2} y={y - 6} fontSize={9} fill="#93c5fd" fontWeight={800} textAnchor="middle">{txt}</text>
-                          </g>
-                        )
-                      }}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', -10, formatHMS, acum.length)}
                     />
                   )}
                   {(acumTmsView === 'both' || acumTmsView === 'sc') && (
@@ -500,17 +535,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.tmss == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={(props: any) => {
-                        const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return <g key={index} />
-                        const txt = formatHMS(value); const w = txt.length * 5.5 + 8
-                        return (
-                          <g key={index}>
-                            <rect x={x + 9} y={y + 4} width={w} height={14} rx={4} fill="#14412f" opacity={0.92} />
-                            <text x={x + 9 + w/2} y={y + 14} fontSize={9} fill="#6ee7b7" fontWeight={800} textAnchor="middle">{txt}</text>
-                          </g>
-                        )
-                      }}
+                      label={makeEndLabel('#6ee7b7', '#14412f', 8, formatHMS, acum.length)}
                     />
                   )}
                 </AreaChart>
@@ -534,9 +559,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                 ))}
               </div>
             </div>
-            <div style={{ height: 180 }}>
+            <div style={{ height: 185 }}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={acum} margin={{ top: 10, right: 60, left: 0, bottom: 0 }}>
+                <AreaChart data={acum} margin={{ top: 12, right: 55, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rg3" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(217 91% 65%)" stopOpacity={0.2}/><stop offset="95%" stopColor="hsl(217 91% 65%)" stopOpacity={0}/></linearGradient>
                     <linearGradient id="rg4" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(142 71% 45%)" stopOpacity={0.15}/><stop offset="95%" stopColor="hsl(142 71% 45%)" stopOpacity={0}/></linearGradient>
@@ -546,7 +571,6 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                   <YAxis domain={[0, 105]} tick={{ fontSize: 8, fill: 'hsl(240 4% 45%)' }} tickFormatter={v => `${v}%`} />
                   <Tooltip content={<DarkTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />} />
                   <ReferenceLine y={metaSn1 * 100} stroke="#ff4444" strokeDasharray="6 3" strokeWidth={2} />
-                  {/* SN1 Con COFO — label a la derecha ARRIBA del punto */}
                   {(acumSn1View === 'both' || acumSn1View === 'cc') && (
                     <Area type="monotone" dataKey="sn1" name="Con COFO" stroke="#60a5fa" fill="url(#rg3)" strokeWidth={2.5}
                       dot={(props: any) => {
@@ -554,20 +578,9 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.sn1 == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#60a5fa" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={(props: any) => {
-                        const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return <g key={index} />
-                        const txt = `${value.toFixed(1)}%`; const w = txt.length * 5.5 + 8
-                        return (
-                          <g key={index}>
-                            <rect x={x + 9} y={y - 16} width={w} height={14} rx={4} fill="#1e3a5f" opacity={0.92} />
-                            <text x={x + 9 + w/2} y={y - 6} fontSize={9} fill="#93c5fd" fontWeight={800} textAnchor="middle">{txt}</text>
-                          </g>
-                        )
-                      }}
+                      label={makeEndLabel('#93c5fd', '#1e3a5f', -10, (v: number) => `${v.toFixed(1)}%`, acum.length)}
                     />
                   )}
-                  {/* SN1 Sin COFO — label a la derecha ABAJO del punto, separado */}
                   {(acumSn1View === 'both' || acumSn1View === 'sc') && (
                     <Area type="monotone" dataKey="sn1s" name="Sin COFO" stroke="#34d399" fill="url(#rg4)" strokeWidth={2}
                       dot={(props: any) => {
@@ -575,17 +588,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                         if (index !== acum.length - 1 || payload.sn1s == null) return <g key={index} />
                         return <circle key={index} cx={cx} cy={cy} r={5} fill="#34d399" stroke="#fff" strokeWidth={2} />
                       }}
-                      label={(props: any) => {
-                        const { x, y, index, value } = props
-                        if (index !== acum.length - 1 || value == null) return <g key={index} />
-                        const txt = `${value.toFixed(1)}%`; const w = txt.length * 5.5 + 8
-                        return (
-                          <g key={index}>
-                            <rect x={x + 9} y={y + 4} width={w} height={14} rx={4} fill="#14412f" opacity={0.92} />
-                            <text x={x + 9 + w/2} y={y + 14} fontSize={9} fill="#6ee7b7" fontWeight={800} textAnchor="middle">{txt}</text>
-                          </g>
-                        )
-                      }}
+                      label={makeEndLabel('#6ee7b7', '#14412f', 8, (v: number) => `${v.toFixed(1)}%`, acum.length)}
                     />
                   )}
                 </AreaChart>
@@ -607,32 +610,12 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
               cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
             }))
             const lastIdx = chartData.length - 1
-
-            // Pill label helper — arriba o abajo
-            const PillLabel = (color: string, bg: string, offset: number) => (props: any) => {
-              const { x, y, index, value } = props
-              if (value == null) return <g key={`lbl-${index}`} />
-              const txt = fmt(value)
-              const isLast = index === lastIdx
-              if (!isLast) {
-                // Puntos intermedios: solo texto pequeño sin pill
-                return <text key={`lbl-${index}`} x={x} y={y + offset} fontSize={8} fill={color} fontWeight={600} textAnchor="middle" opacity={0.8}>{txt}</text>
-              }
-              // Último punto: pill con fondo
-              const w = txt.length * 5.8 + 10
-              const py = y + offset - 10
-              return (
-                <g key={`lbl-${index}`}>
-                  <rect x={x - w/2} y={py} width={w} height={14} rx={5} fill={bg} opacity={0.93} />
-                  <text x={x} y={py + 10} fontSize={9.5} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
-                </g>
-              )
-            }
-
+            const LabelSc = makePillLabel('#6ee7b7', '#14412f', -8, lastIdx, fmt)
+            const LabelCc = makePillLabel('#93c5fd', '#1e3a5f', 20, lastIdx, fmt)
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 200 }}>
+                <div style={{ height: 205 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 22, right: 16, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -640,21 +623,19 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
                       <Tooltip content={<DarkTooltip formatter={fmt} />} />
                       <ReferenceLine y={meta} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} />
-                      {/* Sin COFO verde — label arriba */}
                       <Line type="monotone" dataKey="sc" name="Sin COFO" stroke="hsl(142 71% 45%)" strokeWidth={2}
                         dot={(props: any) => {
                           const { cx, cy, index } = props
                           return <circle key={`sc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(142 71% 45%)" stroke="#fff" strokeWidth={1.5} />
                         }}
-                        label={PillLabel('#6ee7b7', '#14412f', -8)}
+                        label={LabelSc}
                       />
-                      {/* Con COFO azul — label abajo */}
                       <Line type="monotone" dataKey="cc" name="Con COFO" stroke="hsl(217 91% 65%)" strokeWidth={2}
                         dot={(props: any) => {
                           const { cx, cy, index } = props
                           return <circle key={`cc-d-${index}`} cx={cx} cy={cy} r={index === lastIdx ? 5 : 3.5} fill="hsl(217 91% 65%)" stroke="#fff" strokeWidth={1.5} />
                         }}
-                        label={PillLabel('#93c5fd', '#1e3a5f', 20)}
+                        label={LabelCc}
                       />
                     </LineChart>
                   </ResponsiveContainer>
