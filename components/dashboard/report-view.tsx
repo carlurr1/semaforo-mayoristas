@@ -118,21 +118,13 @@ function makePillLabel(color: string, bg: string, offsetUp: number, lastIdx: num
     const { x, y, index, value } = props
     if (value == null) return <g key={`pl-${index}`} />
     const txt = fmt(value)
-    if (index !== lastIdx) {
-      // Puntos intermedios: texto plano pequeño
-      return (
-        <text key={`pl-${index}`} x={x} y={y + (offsetUp < 0 ? offsetUp - 2 : offsetUp + 12)}
-          fontSize={8} fill={color} fontWeight={600} textAnchor="middle" opacity={0.8}
-        >{txt}</text>
-      )
-    }
-    // Último punto: pill con fondo
+    const isLast = index === lastIdx
     const w = txt.length * 6 + 12
     const py = offsetUp < 0 ? y + offsetUp - 12 : y + offsetUp + 2
     return (
       <g key={`pl-${index}`}>
-        <rect x={x - w / 2} y={py} width={w} height={16} rx={5} fill={bg} />
-        <text x={x} y={py + 11} fontSize={10} fill={color} fontWeight={800} textAnchor="middle">{txt}</text>
+        <rect x={x - w / 2} y={py} width={w} height={16} rx={5} fill={bg} opacity={isLast ? 1 : 0.72} />
+        <text x={x} y={py + 11} fontSize={isLast ? 10 : 8.5} fill={color} fontWeight={isLast ? 800 : 700} textAnchor="middle">{txt}</text>
       </g>
     )
   }
@@ -622,7 +614,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
                 <div style={{ height: 205 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 22, right: 16, left: 0, bottom: 4 }}>
+                    <LineChart data={chartData} margin={{ top: 28, right: 16, left: 0, bottom: 18 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="mes" tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} />
                       <YAxis domain={yDomain} tick={{ fontSize: 9, fill: 'hsl(240 4% 45%)' }} tickFormatter={fmt} width={36} />
