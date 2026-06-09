@@ -597,7 +597,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             return (
               <div key={title} className="rounded-xl border border-border bg-accent/30 p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">{title}</p>
-                <div style={{ height: 260 }}>
+                <div style={{ height: 155 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -621,29 +621,29 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                   </ResponsiveContainer>
                 </div>
                 {/* Tabla de valores */}
-                <div className="mt-2 border-t border-border/50 pt-2">
+                <div className="mt-3 border-t border-border/50 pt-3">
                   <table className="w-full text-center" style={{ tableLayout: 'fixed' }}>
                     <thead>
                       <tr>
                         <td className="w-14" />
                         {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] text-muted-foreground pb-0.5">{d.mes}</td>
+                          <td key={i} className="text-[12px] text-muted-foreground pb-1">{d.mes}</td>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td className="text-[9px] font-bold text-emerald-400 text-left">s/COFO</td>
+                        <td className="text-[12px] font-bold text-emerald-400 text-left">s/COFO</td>
                         {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] font-black py-0.5 text-emerald-400">
+                          <td key={i} className="text-[12px] font-black py-1 text-emerald-400">
                             {(fmtTbl ?? fmt)(d.sc)}
                           </td>
                         ))}
                       </tr>
                       <tr>
-                        <td className="text-[9px] font-bold text-blue-400 text-left pt-0.5">c/COFO</td>
+                        <td className="text-[12px] font-bold text-blue-400 text-left pt-1">c/COFO</td>
                         {chartData.map((d, i) => (
-                          <td key={i} className="text-[9px] font-black py-0.5 text-blue-400">
+                          <td key={i} className="text-[12px] font-black py-1 text-blue-400">
                             {(fmtTbl ?? fmt)(d.cc)}
                           </td>
                         ))}
