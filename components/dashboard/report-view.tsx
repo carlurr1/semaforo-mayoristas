@@ -258,9 +258,18 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
   const histFinal = hist.slice(-6)
 
   // Histórico + mes actual con valores ajustados (para las gráficas de tendencia)
-  const histConActual = [
-    ...hist.slice(-5),
-    { mes: mL, tms_sc: tmss, tms_cc: tms, sn1_sc: sn1s, sn1_cc: sn1 }
+  // Excluimos del hist cualquier entrada que tenga el mismo label que el mes actual (para no duplicar)
+  const histSinActual = hist.filter((h: any) => h.mes !== mL)
+  const entradaActual: Record<string, any> = {
+    mes:    mL,
+    tms_sc: tmss,   // Sin COFO → tmss
+    tms_cc: tms,    // Con COFO → tms
+    sn1_sc: sn1s,   // Sin COFO → sn1s (fracción 0-1)
+    sn1_cc: sn1,    // Con COFO → sn1  (fracción 0-1)
+  }
+  const histConActual: Record<string, any>[] = [
+    ...histSinActual.slice(-5).map((h: any) => ({ ...h })),
+    entradaActual,
   ]
 
   // Promedios históricos
@@ -605,10 +614,10 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
             { title: 'SN1 mensual — tendencia 6 meses',  scKey: 'sn1_sc', ccKey: 'sn1_cc', meta: metaSn1 * 100, fmt: (v: number) => `${v.toFixed(0)}%`, fmtTbl: null,       yDomain: [0, 105] },
           ].map(({ title, scKey, ccKey, meta, fmt, fmtTbl, yDomain }) => {
             const isSN1 = scKey === 'sn1_sc'
-            const chartData = histConActual.map(h => ({
+            const chartData = histConActual.map((h: any) => ({
               mes: h.mes,
-              sc: isSN1 ? +((h[scKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[scKey as keyof typeof h] as number).toFixed(2),
-              cc: isSN1 ? +((h[ccKey as keyof typeof h] as number) * 100).toFixed(1) : +(h[ccKey as keyof typeof h] as number).toFixed(2),
+              sc: isSN1 ? +((h[scKey] as number) * 100).toFixed(1) : +(h[scKey] as number).toFixed(2),
+              cc: isSN1 ? +((h[ccKey] as number) * 100).toFixed(1) : +(h[ccKey] as number).toFixed(2),
             }))
             const lastIdx = chartData.length - 1
             return (
