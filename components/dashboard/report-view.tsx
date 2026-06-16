@@ -24,38 +24,53 @@ const HIST_BASE = [
 ]
 
 // ─── Helper: label badge al final de la línea ───────────────────────────────
-// Solo pinta algo en el ÚLTIMO punto con valor no-nulo de la serie.
+// Recharts llama esta función para CADA punto. Solo pintamos en el último
+// punto con valor válido. Retornamos un <circle> invisible en los demás para
+// evitar que Recharts renderice el dot por defecto.
 function EndLabelDot(props: any) {
-  const { cx, cy, index, value, color, dataLen, formatter } = props
-  if (index !== dataLen - 1 || value == null) return null
-  const label: string = formatter ? formatter(value) : String(value)
-  const rectW = label.length * 6.8 + 10
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={4} fill={color} stroke="hsl(var(--card))" strokeWidth={2} />
-      <rect
-        x={cx + 7}
-        y={cy - 11}
-        width={rectW}
-        height={20}
-        rx={5}
-        fill="#0f172a"
-        stroke={color}
-        strokeWidth={1}
-        opacity={0.95}
-      />
-      <text
-        x={cx + 12}
-        y={cy + 3}
-        fill={color}
-        fontSize={10}
-        fontFamily="ui-monospace, monospace"
-        fontWeight="bold"
-      >
-        {label}
-      </text>
-    </g>
-  )
+  try {
+    const { cx, cy, index, value, color, dataLen, formatter } = props
+    // Guardia completa: si cualquier dato crítico falta, dot invisible
+    if (
+      value == null ||
+      !isFinite(value) ||
+      index !== dataLen - 1 ||
+      !isFinite(cx) ||
+      !isFinite(cy)
+    ) {
+      return <circle cx={cx ?? 0} cy={cy ?? 0} r={0} fill="none" />
+    }
+    const label: string = formatter ? formatter(value) : String(value)
+    const rectW = Math.max(label.length * 6.8 + 10, 40)
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={4} fill={color} stroke="#0f172a" strokeWidth={1.5} />
+        <rect
+          x={cx + 7}
+          y={cy - 11}
+          width={rectW}
+          height={20}
+          rx={5}
+          fill="#0f172a"
+          stroke={color}
+          strokeWidth={1}
+          opacity={0.95}
+        />
+        <text
+          x={cx + 12}
+          y={cy + 3}
+          fill={color}
+          fontSize={10}
+          fontFamily="ui-monospace, monospace"
+          fontWeight="bold"
+        >
+          {label}
+        </text>
+      </g>
+    )
+  } catch {
+    return <circle r={0} fill="none" />
+  }
 }
 
 // Calcular acumulado diario — usa bdRecords si los hay, sino serieDia con proporción global
@@ -511,14 +526,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     stroke="#60a5fa"
                     fill="url(#rptTms1)"
                     strokeWidth={2.5}
-                    dot={(props: any) => (
-                      <EndLabelDot
-                        {...props}
-                        dataLen={acumLen}
-                        color="#60a5fa"
-                        formatter={(v: number) => formatHMS(v)}
-                      />
-                    )}
+                    dot={(p: any) => <EndLabelDot key={p.index} {...p} dataLen={acumLen} color="#60a5fa" formatter={(v: number) => formatHMS(v)} />}
                     activeDot={{ r: 5 }}
                   />
 
@@ -530,14 +538,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     stroke="#34d399"
                     fill="url(#rptTms2)"
                     strokeWidth={2}
-                    dot={(props: any) => (
-                      <EndLabelDot
-                        {...props}
-                        dataLen={acumLen}
-                        color="#34d399"
-                        formatter={(v: number) => formatHMS(v)}
-                      />
-                    )}
+                    dot={(p: any) => <EndLabelDot key={p.index} {...p} dataLen={acumLen} color="#34d399" formatter={(v: number) => formatHMS(v)} />}
                     activeDot={{ r: 5 }}
                   />
                 </AreaChart>
@@ -577,14 +578,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     stroke="#60a5fa"
                     fill="url(#rptSn1)"
                     strokeWidth={2.5}
-                    dot={(props: any) => (
-                      <EndLabelDot
-                        {...props}
-                        dataLen={acumLen}
-                        color="#60a5fa"
-                        formatter={(v: number) => `${v.toFixed(1)}%`}
-                      />
-                    )}
+                    dot={(p: any) => <EndLabelDot key={p.index} {...p} dataLen={acumLen} color="#60a5fa" formatter={(v: number) => `${v.toFixed(1)}%`} />}
                     activeDot={{ r: 5 }}
                   />
 
@@ -596,14 +590,7 @@ export function ReportView({ data, mes, metaSn1, metaTms, histCierres }: ReportV
                     stroke="#34d399"
                     fill="url(#rptSn2)"
                     strokeWidth={2}
-                    dot={(props: any) => (
-                      <EndLabelDot
-                        {...props}
-                        dataLen={acumLen}
-                        color="#34d399"
-                        formatter={(v: number) => `${v.toFixed(1)}%`}
-                      />
-                    )}
+                    dot={(p: any) => <EndLabelDot key={p.index} {...p} dataLen={acumLen} color="#34d399" formatter={(v: number) => `${v.toFixed(1)}%`} />}
                     activeDot={{ r: 5 }}
                   />
                 </AreaChart>
